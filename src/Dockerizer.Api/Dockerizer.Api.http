@@ -1,0 +1,6 @@
+@Dockerizer.Api_HostAddress = http://localhost:5169
+
+GET {{Dockerizer.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

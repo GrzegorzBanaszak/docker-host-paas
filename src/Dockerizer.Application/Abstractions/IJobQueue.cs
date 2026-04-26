@@ -1,0 +1,7 @@
+namespace Dockerizer.Application.Abstractions;
+
+public interface IJobQueue
+{
+    Task EnqueueAsync(Guid jobId, CancellationToken cancellationToken);
+    Task<Guid?> DequeueAsync(CancellationToken cancellationToken);
+}

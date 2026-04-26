@@ -1,0 +1,42 @@
+using Dockerizer.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Dockerizer.Infrastructure.Persistence.Configurations;
+
+public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
+{
+    public void Configure(EntityTypeBuilder<Job> builder)
+    {
+        builder.ToTable("jobs");
+
+        builder.HasKey(job => job.Id);
+
+        builder.Property(job => job.RepositoryUrl)
+            .HasMaxLength(2048)
+            .IsRequired();
+
+        builder.Property(job => job.Branch)
+            .HasMaxLength(255);
+
+        builder.Property(job => job.Status)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
+        builder.Property(job => job.DetectedStack)
+            .HasMaxLength(128);
+
+        builder.Property(job => job.GeneratedImageTag)
+            .HasMaxLength(256);
+
+        builder.Property(job => job.ErrorMessage)
+            .HasMaxLength(4000);
+
+        builder.Property(job => job.CreatedAtUtc)
+            .IsRequired();
+
+        builder.HasIndex(job => job.CreatedAtUtc);
+        builder.HasIndex(job => job.Status);
+    }
+}

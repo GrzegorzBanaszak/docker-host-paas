@@ -1,0 +1,22 @@
+# .NET build artifacts
+bin/
+obj/
+dist/
+node_modules/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local worker data
+.worker-data/
+
+# Local environment files
+.env
+.env.*
