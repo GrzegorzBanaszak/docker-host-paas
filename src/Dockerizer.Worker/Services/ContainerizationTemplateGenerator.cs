@@ -112,6 +112,14 @@ public sealed class ContainerizationTemplateGenerator(ILogger<ContainerizationTe
                 # Existing Dockerfile detected in repository.
                 # Generation skipped by Dockerizer.
                 """,
+            "static-html" => """
+                FROM nginx:1.27-alpine
+
+                COPY . /usr/share/nginx/html
+
+                EXPOSE 80
+                CMD ["nginx", "-g", "daemon off;"]
+                """,
             _ => """
                 FROM alpine:3.20
                 WORKDIR /app

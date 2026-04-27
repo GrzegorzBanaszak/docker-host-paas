@@ -60,21 +60,22 @@ public sealed class JobExecutionService(
         try
         {
             var workspacePath = PrepareWorkspace(job.Id);
+            var repositoryPath = Path.Combine(workspacePath, "repository");
             await jobLogWriter.WriteLineAsync(workspacePath, $"Starting job for repository {job.RepositoryUrl}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
-            await gitRepositoryCloner.CloneAsync(job, workspacePath, cancellationToken);
+            await gitRepositoryCloner.CloneAsync(job, repositoryPath, cancellationToken);
             await jobLogWriter.WriteLineAsync(workspacePath, "Repository cloned successfully.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
-            job.DetectedStack = await repositoryStackDetector.DetectAsync(workspacePath, cancellationToken);
+            job.DetectedStack = await repositoryStackDetector.DetectAsync(repositoryPath, cancellationToken);
             await jobLogWriter.WriteLineAsync(workspacePath, $"Detected stack: {job.DetectedStack}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
-            await containerizationTemplateGenerator.GenerateAsync(workspacePath, job.DetectedStack, cancellationToken);
+            await containerizationTemplateGenerator.GenerateAsync(repositoryPath, job.DetectedStack, cancellationToken);
             await jobLogWriter.WriteLineAsync(workspacePath, "Containerization files generated.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
-            job.ContainerPort = containerPortResolver.Resolve(workspacePath, job.DetectedStack);
+            job.ContainerPort = containerPortResolver.Resolve(repositoryPath, job.DetectedStack);
             await jobLogWriter.WriteLineAsync(workspacePath, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
-            job.GeneratedImageTag = await dockerImageBuilder.BuildAsync(job, workspacePath, cancellationToken);
+            job.GeneratedImageTag = await dockerImageBuilder.BuildAsync(job, repositoryPath, cancellationToken);
             await jobLogWriter.WriteLineAsync(workspacePath, $"Docker image built: {job.GeneratedImageTag}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
             var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort.Value, cancellationToken);

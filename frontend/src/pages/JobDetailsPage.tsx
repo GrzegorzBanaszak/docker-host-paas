@@ -31,8 +31,8 @@ export function JobDetailsPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      <header className="lg:col-span-12 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)_minmax(18rem,20rem)]">
+      <header className="xl:col-span-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-3">
             <Link to="/jobs" className="flex items-center text-steel transition hover:text-ink">
@@ -61,7 +61,7 @@ export function JobDetailsPage() {
         <JobActions job={jobQuery.data} />
       </header>
 
-      <div className="space-y-4 lg:col-span-3">
+      <div className="min-w-0 space-y-4">
         <JobDetailsCard job={jobQuery.data} />
         <section className="rounded border border-outline bg-white p-4">
           <h3 className="mb-4 border-b border-outline pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
@@ -79,11 +79,16 @@ export function JobDetailsPage() {
         </section>
       </div>
 
-      <div className="lg:col-span-6">
-        <LogViewer content={logsQuery.data?.content} />
+      <div className="min-w-0">
+        {logsQuery.isError ? (
+          <EmptyState title="Logs unavailable" description={(logsQuery.error as Error).message || "Could not load job logs."} />
+        ) : (
+          <LogViewer content={logsQuery.data?.content} />
+        )}
       </div>
 
-      <div className="flex h-[600px] flex-col overflow-hidden rounded border border-outline bg-white lg:col-span-3">
+      <div className="min-w-0">
+        <div className="flex h-[600px] flex-col overflow-hidden rounded border border-outline bg-white">
         <div className="border-b border-outline bg-slate-50 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
           Generated Files
         </div>
@@ -94,8 +99,13 @@ export function JobDetailsPage() {
             onSelect={setSelectedFileId}
           />
           <div className="flex-1">
-            <FilePreviewPanel name={fileContentQuery.data?.name} content={fileContentQuery.data?.content} />
+            {fileContentQuery.isError ? (
+              <EmptyState title="File unavailable" description={(fileContentQuery.error as Error).message || "Could not load the selected artifact."} />
+            ) : (
+              <FilePreviewPanel name={fileContentQuery.data?.name} content={fileContentQuery.data?.content} />
+            )}
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -108,21 +118,44 @@ function buildTimeline(job: {
   completedAtUtc?: string | null;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
+  deploymentUrl?: string | null;
+  deployedAtUtc?: string | null;
 }) {
   const doneClass = "bg-emerald-500";
   const activeClass = "bg-sky-500 ring-2 ring-sky-200";
   const pendingClass = "bg-white border-outline";
+  const failedClass = "bg-rose-600";
+  const canceledClass = "bg-amber-500";
 
   const isFinished = job.status === "Succeeded";
   const isFailed = job.status === "Failed";
+  const isCanceled = job.status === "Canceled";
   const buildFinished = Boolean(job.generatedImageTag);
+  const deployFinished = Boolean(job.deploymentUrl);
+  const isRunningDeploy = job.status === "Running" && buildFinished && !deployFinished;
 
   return [
     { label: "Queued", caption: "Initial state", dotClass: doneClass, isActive: true },
     { label: "Clone Repository", caption: job.startedAtUtc ? "Completed" : "Pending", dotClass: job.startedAtUtc ? doneClass : pendingClass, isActive: !!job.startedAtUtc },
     { label: "Analyze Context", caption: job.detectedStack ? `Detected ${job.detectedStack}` : "Pending", dotClass: job.detectedStack ? doneClass : pendingClass, isActive: !!job.detectedStack },
     { label: "Generate Dockerfile", caption: job.detectedStack ? "Completed" : "Pending", dotClass: job.detectedStack ? doneClass : pendingClass, isActive: !!job.detectedStack },
-    { label: "Build Image", caption: buildFinished ? "Completed" : job.status === "Running" ? "In Progress..." : isFailed ? "Failed" : "Pending", dotClass: buildFinished ? doneClass : job.status === "Running" ? activeClass : pendingClass, isActive: buildFinished || job.status === "Running" },
-    { label: "Final Status", caption: isFinished ? "Succeeded" : isFailed ? "Failed" : job.status === "Canceled" ? "Canceled" : "Pending", dotClass: isFinished ? doneClass : isFailed ? "bg-rose-600" : pendingClass, isActive: !!job.completedAtUtc }
+    {
+      label: "Build Image",
+      caption: buildFinished ? "Completed" : job.status === "Running" ? "In Progress..." : isFailed ? "Failed" : isCanceled ? "Canceled" : "Pending",
+      dotClass: buildFinished ? doneClass : job.status === "Running" ? activeClass : isFailed ? failedClass : isCanceled ? canceledClass : pendingClass,
+      isActive: buildFinished || job.status === "Running" || isFailed || isCanceled
+    },
+    {
+      label: "Deploy Container",
+      caption: deployFinished ? "Container is reachable" : isRunningDeploy ? "Starting container..." : isFailed ? "Failed" : isCanceled ? "Canceled" : "Pending",
+      dotClass: deployFinished ? doneClass : isRunningDeploy ? activeClass : isFailed ? failedClass : isCanceled ? canceledClass : pendingClass,
+      isActive: deployFinished || isRunningDeploy || isFailed || isCanceled
+    },
+    {
+      label: "Deployment Ready",
+      caption: isFinished ? (job.deploymentUrl ?? "Ready") : isFailed ? "Failed" : isCanceled ? "Canceled" : "Pending",
+      dotClass: isFinished ? doneClass : isFailed ? failedClass : isCanceled ? canceledClass : pendingClass,
+      isActive: !!job.completedAtUtc
+    }
   ];
 }

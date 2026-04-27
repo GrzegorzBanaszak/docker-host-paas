@@ -19,6 +19,7 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
             <th className="px-4 py-3">Stack</th>
             <th className="px-4 py-3">Status</th>
             {mode === "full" ? <th className="px-4 py-3">Image Tag</th> : null}
+            {mode === "full" ? <th className="px-4 py-3">Deployment</th> : null}
             <th className="px-4 py-3">Created</th>
             <th className="px-4 py-3 text-right">Action</th>
           </tr>
@@ -44,12 +45,47 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
               {mode === "full" ? (
                 <td className="px-4 py-3 font-mono text-[11px] text-steel">{job.generatedImageTag || "-"}</td>
               ) : null}
+              {mode === "full" ? (
+                <td className="px-4 py-3">
+                  {job.deploymentUrl ? (
+                    <div className="flex flex-col gap-1">
+                      <a
+                        className="inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-secondary hover:text-ink"
+                        href={job.deploymentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open
+                        <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                      </a>
+                      <span className="font-mono text-[11px] text-steel">
+                        {job.publishedPort ? `:${job.publishedPort}` : job.deploymentUrl}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[12px] text-slate-400">pending</span>
+                  )}
+                </td>
+              ) : null}
               <td className="px-4 py-3 text-steel">{formatAge(job.createdAtUtc)}</td>
               <td className="px-4 py-3 text-right">
-                <Link className="inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-secondary hover:text-ink" to={`/jobs/${job.id}`}>
-                  Details
-                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                </Link>
+                <div className="flex items-center justify-end gap-3">
+                  {job.deploymentUrl ? (
+                    <a
+                      className="inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-secondary hover:text-ink"
+                      href={job.deploymentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open
+                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                    </a>
+                  ) : null}
+                  <Link className="inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-secondary hover:text-ink" to={`/jobs/${job.id}`}>
+                    Details
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}

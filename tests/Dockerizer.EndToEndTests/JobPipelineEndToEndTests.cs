@@ -58,6 +58,34 @@ public sealed class JobPipelineEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task ProcessAsync_ForStaticHtml_UsesNginxStyleContainerization()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "static-html");
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+        var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
+
+        var created = await jobsService.CreateAsync(
+            new CreateJobCommand("https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            CancellationToken.None);
+
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+
+        var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+        var dockerfile = await jobsService.GetFileContentAsync(created.Id, "Dockerfile", CancellationToken.None);
+
+        Assert.NotNull(job);
+        Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
+        Assert.Equal("static-html", job.DetectedStack);
+        Assert.Equal(80, job.ContainerPort);
+        Assert.NotNull(dockerfile);
+        Assert.Contains("nginx:1.27-alpine", dockerfile!.Content);
+        Assert.Contains("/usr/share/nginx/html", dockerfile.Content);
+    }
+
+    [Fact]
     public async Task RetryAsync_CleansDeploymentState_AndEnqueuesJobAgain()
     {
         Directory.CreateDirectory(_tempRoot);

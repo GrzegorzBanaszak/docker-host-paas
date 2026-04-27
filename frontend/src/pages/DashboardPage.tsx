@@ -10,6 +10,7 @@ export function DashboardPage() {
   const successCount = jobs.filter((job) => job.status === "Succeeded").length;
   const failedCount = jobs.filter((job) => job.status === "Failed").length;
   const runningCount = jobs.filter((job) => job.status === "Running").length;
+  const deployedCount = jobs.filter((job) => Boolean(job.deploymentUrl)).length;
 
   return (
     <div className="space-y-6">
@@ -19,11 +20,12 @@ export function DashboardPage() {
         description="Containerize your GitHub repositories with precision."
       />
 
-      <section className="grid gap-4 xl:grid-cols-4">
+      <section className="grid gap-4 xl:grid-cols-5">
         <StatCard label="Total Jobs" value={jobs.length} icon="query_stats" />
         <StatCard label="Succeeded" value={successCount} icon="check_circle" iconTone="text-emerald-600" />
         <StatCard label="Failed" value={failedCount} icon="error" iconTone="text-rose-700" />
         <StatCard label="Running" value={runningCount} icon="autorenew" iconTone="text-secondary" />
+        <StatCard label="Live Deploys" value={deployedCount} icon="open_in_new" iconTone="text-sky-700" />
       </section>
 
       <div className="grid grid-cols-12 gap-4">

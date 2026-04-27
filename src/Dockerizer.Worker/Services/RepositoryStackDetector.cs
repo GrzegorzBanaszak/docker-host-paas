@@ -45,6 +45,11 @@ public sealed class RepositoryStackDetector
             return Task.FromResult("dockerfile-only");
         }
 
+        if (File.Exists(Path.Combine(repositoryPath, "index.html")))
+        {
+            return Task.FromResult("static-html");
+        }
+
         return Task.FromResult("unknown");
     }
 }

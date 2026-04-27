@@ -23,6 +23,7 @@ public sealed class ContainerPortResolver
             "java" => 8080,
             "dotnet" => 8080,
             "dockerfile-only" => 8080,
+            "static-html" => 80,
             _ => 8080,
         };
     }

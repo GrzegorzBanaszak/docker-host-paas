@@ -1,7 +1,20 @@
+import { useState } from "react";
 import type { JobDetails } from "./types";
 import { JobStatusBadge } from "./JobStatusBadge";
 
 export function JobDetailsCard({ job }: { job: JobDetails }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopyContainerId() {
+    if (!job.containerId || !navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(job.containerId);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
     <div className="grid gap-3">
       <div className="rounded border border-outline bg-surface p-4">
@@ -78,9 +91,24 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
               <p className="text-xs text-steel">Completed</p>
               <p className="mt-1 text-sm text-ink">{job.completedAtUtc ? new Date(job.completedAtUtc).toLocaleString() : "-"}</p>
             </div>
-            <div>
+            <div />
+          </div>
+          <div>
+            <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-steel">Container ID</p>
-              <p className="mt-1 font-mono text-[12px] text-ink">{job.containerId || "-"}</p>
+              {job.containerId ? (
+                <button
+                  type="button"
+                  onClick={() => void handleCopyContainerId()}
+                  className="inline-flex items-center gap-1 rounded-sm border border-outline bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-steel transition hover:bg-slate-50 hover:text-ink"
+                >
+                  <span className="material-symbols-outlined text-[14px]">{copied ? "check" : "content_copy"}</span>
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              ) : null}
+            </div>
+            <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink" title={job.containerId || "-"}>
+              {job.containerId ? abbreviateMiddle(job.containerId, 14, 14) : "-"}
             </div>
           </div>
         </div>
@@ -93,4 +121,12 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
       ) : null}
     </div>
   );
+}
+
+function abbreviateMiddle(value: string, startLength: number, endLength: number) {
+  if (value.length <= startLength + endLength + 3) {
+    return value;
+  }
+
+  return `${value.slice(0, startLength)}...${value.slice(-endLength)}`;
 }

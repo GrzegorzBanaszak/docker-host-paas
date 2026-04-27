@@ -5,6 +5,7 @@ namespace Dockerizer.Infrastructure.Artifacts;
 public sealed class JobArtifactService(ArtifactOptions options)
 {
     private static readonly string[] GeneratedFiles = ["Dockerfile", ".dockerignore"];
+    private const string RepositoryDirectoryName = "repository";
 
     public Task<JobLogDto?> GetLogsAsync(Guid jobId, CancellationToken cancellationToken)
     {
@@ -29,7 +30,7 @@ public sealed class JobArtifactService(ArtifactOptions options)
         }
 
         var files = GeneratedFiles
-            .Select(fileName => new FileInfo(Path.Combine(workspacePath, fileName)))
+            .Select(fileName => new FileInfo(Path.Combine(GetRepositoryPath(jobId), fileName)))
             .Where(file => file.Exists)
             .Select(file => new JobFileDto(file.Name, file.Name, file.Length))
             .ToList();
@@ -46,7 +47,7 @@ public sealed class JobArtifactService(ArtifactOptions options)
             return Task.FromResult<JobFileContentDto?>(null);
         }
 
-        var filePath = Path.Combine(GetWorkspacePath(jobId), fileId);
+        var filePath = Path.Combine(GetRepositoryPath(jobId), fileId);
         if (!File.Exists(filePath))
         {
             return Task.FromResult<JobFileContentDto?>(null);
@@ -80,4 +81,7 @@ public sealed class JobArtifactService(ArtifactOptions options)
 
         return workspacePath;
     }
+
+    private string GetRepositoryPath(Guid jobId) =>
+        Path.Combine(GetWorkspacePath(jobId), RepositoryDirectoryName);
 }

@@ -26,8 +26,14 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
     [HttpGet("{id:guid}/logs")]
     public async Task<IActionResult> GetLogs(Guid id, CancellationToken cancellationToken)
     {
+        var job = await jobsService.GetByIdAsync(id, cancellationToken);
+        if (job is null)
+        {
+            return NotFound();
+        }
+
         var logs = await jobsService.GetLogsAsync(id, cancellationToken);
-        return logs is null ? NotFound() : Ok(logs);
+        return Ok(logs ?? new JobLogDto(string.Empty));
     }
 
     [HttpGet("{id:guid}/files")]
