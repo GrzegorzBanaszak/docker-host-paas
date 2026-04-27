@@ -7,10 +7,14 @@ type PanelProps = PropsWithChildren<{
 
 export function Panel({ title, description, children }: PanelProps) {
   return (
-    <section className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-panel">
-      {title ? <h2 className="text-lg font-semibold text-ink">{title}</h2> : null}
-      {description ? <p className="mt-1 text-sm text-steel">{description}</p> : null}
-      <div className={title || description ? "mt-5" : ""}>{children}</div>
+    <section className="rounded border border-outline bg-white shadow-panel">
+      {title || description ? (
+        <div className="border-b border-outline bg-gradient-to-b from-white to-slate-50 px-4 py-3">
+          {title ? <h2 className="text-[20px] font-semibold tracking-[-0.01em] text-ink">{title}</h2> : null}
+          {description ? <p className="mt-1 text-sm text-steel">{description}</p> : null}
+        </div>
+      ) : null}
+      <div className="p-4">{children}</div>
     </section>
   );
 }

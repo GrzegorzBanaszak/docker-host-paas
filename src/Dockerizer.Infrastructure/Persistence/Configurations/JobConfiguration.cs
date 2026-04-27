@@ -30,6 +30,15 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(job => job.GeneratedImageTag)
             .HasMaxLength(256);
 
+        builder.Property(job => job.ContainerId)
+            .HasMaxLength(128);
+
+        builder.Property(job => job.ContainerName)
+            .HasMaxLength(128);
+
+        builder.Property(job => job.DeploymentUrl)
+            .HasMaxLength(512);
+
         builder.Property(job => job.ErrorMessage)
             .HasMaxLength(4000);
 

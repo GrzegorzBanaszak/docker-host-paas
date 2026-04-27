@@ -1,6 +1,7 @@
 using Dockerizer.Application.Abstractions;
 using Dockerizer.Domain;
 using Dockerizer.Infrastructure.Artifacts;
+using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Persistence;
 using Dockerizer.Worker.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -11,10 +12,12 @@ namespace Dockerizer.Worker.Services;
 public sealed class JobExecutionService(
     DockerizerDbContext dbContext,
     IJobQueue jobQueue,
-    GitRepositoryCloner gitRepositoryCloner,
+    IGitRepositoryCloner gitRepositoryCloner,
     RepositoryStackDetector repositoryStackDetector,
     ContainerizationTemplateGenerator containerizationTemplateGenerator,
-    DockerImageBuilder dockerImageBuilder,
+    ContainerPortResolver containerPortResolver,
+    IDockerImageBuilder dockerImageBuilder,
+    IDockerContainerRuntime dockerContainerRuntime,
     JobLogWriter jobLogWriter,
     JobArtifactService jobArtifactService,
     IOptions<WorkerOptions> workerOptions,
@@ -45,6 +48,12 @@ public sealed class JobExecutionService(
         job.CompletedAtUtc = null;
         job.ErrorMessage = null;
         job.GeneratedImageTag = null;
+        job.ContainerId = null;
+        job.ContainerName = null;
+        job.ContainerPort = null;
+        job.PublishedPort = null;
+        job.DeploymentUrl = null;
+        job.DeployedAtUtc = null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -62,8 +71,20 @@ public sealed class JobExecutionService(
             await containerizationTemplateGenerator.GenerateAsync(workspacePath, job.DetectedStack, cancellationToken);
             await jobLogWriter.WriteLineAsync(workspacePath, "Containerization files generated.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            job.ContainerPort = containerPortResolver.Resolve(workspacePath, job.DetectedStack);
+            await jobLogWriter.WriteLineAsync(workspacePath, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
             job.GeneratedImageTag = await dockerImageBuilder.BuildAsync(job, workspacePath, cancellationToken);
             await jobLogWriter.WriteLineAsync(workspacePath, $"Docker image built: {job.GeneratedImageTag}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort.Value, cancellationToken);
+            job.ContainerId = deployment.ContainerId;
+            job.ContainerName = deployment.ContainerName;
+            job.PublishedPort = deployment.PublishedPort;
+            job.DeploymentUrl = deployment.DeploymentUrl;
+            job.DeployedAtUtc = deployment.DeployedAtUtc;
+            await jobLogWriter.WriteLineAsync(workspacePath, $"Container deployed: {job.ContainerName} at {job.DeploymentUrl}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
 
             job.Status = JobStatus.Succeeded;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
@@ -84,6 +105,12 @@ public sealed class JobExecutionService(
         catch (JobCanceledException)
         {
             logger.LogInformation("Job {JobId} was canceled during processing.", jobId);
+            await dockerContainerRuntime.StopAndRemoveAsync(job, CancellationToken.None);
+            job.ContainerId = null;
+            job.ContainerName = null;
+            job.PublishedPort = null;
+            job.DeploymentUrl = null;
+            job.DeployedAtUtc = null;
             await CleanupWorkspaceIfConfiguredAsync(job.Id, cancellationToken);
         }
         catch (Exception ex)
@@ -93,6 +120,13 @@ public sealed class JobExecutionService(
             {
                 await jobLogWriter.WriteLineAsync(workspacePath, $"Job failed: {ex.Message}", CancellationToken.None);
             }
+
+            await dockerContainerRuntime.StopAndRemoveAsync(job, CancellationToken.None);
+            job.ContainerId = null;
+            job.ContainerName = null;
+            job.PublishedPort = null;
+            job.DeploymentUrl = null;
+            job.DeployedAtUtc = null;
 
             job.Status = JobStatus.Failed;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;

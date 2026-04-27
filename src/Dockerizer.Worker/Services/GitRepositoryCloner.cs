@@ -3,7 +3,7 @@ using Dockerizer.Domain.Entities;
 
 namespace Dockerizer.Worker.Services;
 
-public sealed class GitRepositoryCloner(ILogger<GitRepositoryCloner> logger)
+public sealed class GitRepositoryCloner(ILogger<GitRepositoryCloner> logger) : IGitRepositoryCloner
 {
     public async Task CloneAsync(Job job, string targetPath, CancellationToken cancellationToken)
     {

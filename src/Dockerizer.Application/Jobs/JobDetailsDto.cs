@@ -7,7 +7,13 @@ public sealed record JobDetailsDto(
     string Status,
     string? DetectedStack,
     string? GeneratedImageTag,
+    string? ContainerId,
+    string? ContainerName,
+    int? ContainerPort,
+    int? PublishedPort,
+    string? DeploymentUrl,
     string? ErrorMessage,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? DeployedAtUtc,
     DateTimeOffset? CompletedAtUtc);

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DOCKERIZER - Control Room</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;family=JetBrains+Mono:wght@400&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#001e2f",
+                        "on-background": "#0b1c30",
+                        "surface": "#f8f9ff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#004666",
+                        "tertiary": "#000000",
+                        "surface-bright": "#f8f9ff",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-primary": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-tertiary-container": "#009668",
+                        "on-secondary-fixed-variant": "#004c6e",
+                        "surface-variant": "#d3e4fe",
+                        "primary-fixed": "#dae2fd",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "tertiary-fixed": "#6ffbbe",
+                        "primary-fixed-dim": "#bec6e0",
+                        "surface-container-high": "#dce9ff",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#002113",
+                        "on-primary-fixed": "#131b2e",
+                        "surface-container-low": "#eff4ff",
+                        "error": "#ba1a1a",
+                        "on-surface": "#0b1c30",
+                        "outline": "#76777d",
+                        "primary-container": "#131b2e",
+                        "inverse-primary": "#bec6e0",
+                        "on-error": "#ffffff",
+                        "secondary-fixed-dim": "#89ceff",
+                        "tertiary-container": "#002113",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "secondary-container": "#39b8fd",
+                        "on-primary-container": "#7c839b",
+                        "primary": "#000000",
+                        "outline-variant": "#c6c6cd",
+                        "on-surface-variant": "#45464d",
+                        "inverse-surface": "#213145",
+                        "surface-dim": "#cbdbf5",
+                        "on-tertiary": "#ffffff",
+                        "background": "#f8f9ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "secondary": "#006591",
+                        "secondary-fixed": "#c9e6ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "base": "4px",
+                        "md": "16px",
+                        "grid-margin": "24px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "grid-gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-main": ["Inter"],
+                        "code-block": ["JetBrains Mono"],
+                        "headline-md": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "body-main": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "code-block": ["13px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            background-image: 
+                linear-gradient(theme('colors.surface-variant') 1px, transparent 1px),
+                linear-gradient(90deg, theme('colors.surface-variant') 1px, transparent 1px);
+            background-size: 16px 16px;
+            background-position: center center;
+        }
+        
+        /* Specific overrides for raw JSON component classes to map to intent where necessary */
+        .docked { position: fixed; }
+        .full-width { width: 100%; }
+        .no-shadows { box-shadow: none; }
+    </style>
+</head>
+<body class="text-on-background font-body-main antialiased min-h-screen">
+<!-- TopNavBar -->
+<nav class="bg-white dark:bg-slate-950 flex justify-between items-center w-full h-14 px-6 z-50 docked full-width top-0 border-b border-slate-200 dark:border-slate-800 flat no-shadows text-slate-900 dark:text-slate-50 font-inter text-sm font-medium tracking-tight">
+<div class="flex items-center gap-4">
+<span class="text-lg font-black tracking-tighter text-slate-900 dark:text-slate-50 uppercase">DOCKERIZER</span>
+</div>
+<!-- Search left aligned relative to trailing actions -->
+<div class="flex-1 px-8 flex justify-start">
+<div class="relative w-64 hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+<input class="w-full h-8 pl-9 pr-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded focus:outline-none focus:border-slate-400 text-xs" placeholder="Search resources..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 p-1.5 rounded-sm active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 p-1.5 rounded-sm active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 p-1.5 rounded-sm active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">help</span>
+</button>
+<div class="h-6 w-6 rounded bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 overflow-hidden ml-2 cursor-pointer active:opacity-80 transition-opacity">
+<!-- Fallback for profile image -->
+<span class="material-symbols-outlined text-[24px] text-slate-500 block text-center leading-6">person</span>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm fixed left-0 top-14 bottom-0 w-64 flex flex-col p-4 z-40 border-r border-slate-200 dark:border-slate-800 flat no-shadows text-slate-900 dark:text-slate-50 font-inter text-[13px] font-semibold">
+<div class="mb-6 px-4 pt-2">
+<h2 class="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">Control Room</h2>
+<p class="text-[11px] font-normal text-slate-500 mt-0.5">Engine v2.4.0</p>
+</div>
+<button class="mb-6 mx-4 bg-slate-900 text-white dark:bg-white dark:text-slate-900 h-9 rounded flex items-center justify-center gap-2 hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors duration-150 active:translate-x-0.5 transition-transform">
+<span class="material-symbols-outlined text-[18px]">add</span>
+            New Job
+        </button>
+<nav class="flex-1 flex flex-col gap-1">
+<!-- Active Tab -->
+<a class="flex items-center gap-3 px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-sm border border-slate-200 dark:border-slate-700 shadow-sm active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Inactive Tabs -->
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform rounded-sm" href="#">
+<span class="material-symbols-outlined">terminal</span>
+<span>Jobs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform rounded-sm" href="#">
+<span class="material-symbols-outlined">layers</span>
+<span>Images</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform rounded-sm" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+<span>Clusters</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform rounded-sm" href="#">
+<span class="material-symbols-outlined">database</span>
+<span>Registry</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-slate-200 dark:border-slate-800 pt-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform rounded-sm" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span>Docs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform rounded-sm" href="#">
+<span class="material-symbols-outlined">support_agent</span>
+<span>Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="pl-64 pt-14 p-grid-margin w-full min-h-screen pb-xl">
+<!-- Header -->
+<header class="mb-lg">
+<h1 class="font-display-lg text-display-lg text-on-background mb-1">DOCKERIZER</h1>
+<p class="font-body-main text-body-main text-on-surface-variant max-w-2xl">Containerize your GitHub repositories with precision.</p>
+</header>
+<!-- Stats Row -->
+<section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-grid-gutter mb-grid-gutter">
+<!-- Stat Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-md flex flex-col rounded shadow-none relative overflow-hidden group">
+<div class="absolute right-0 top-0 w-16 h-16 bg-gradient-to-bl from-surface-variant to-transparent opacity-50"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Total Jobs</span>
+<span class="material-symbols-outlined text-outline">query_stats</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface relative z-10">1,248</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-md flex flex-col rounded shadow-none relative overflow-hidden group">
+<div class="absolute right-0 top-0 w-16 h-16 bg-gradient-to-bl from-surface-variant to-transparent opacity-50"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Succeeded</span>
+<span class="material-symbols-outlined text-on-tertiary-container">check_circle</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface relative z-10">1,102</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-md flex flex-col rounded shadow-none relative overflow-hidden group">
+<div class="absolute right-0 top-0 w-16 h-16 bg-gradient-to-bl from-surface-variant to-transparent opacity-50"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Failed</span>
+<span class="material-symbols-outlined text-error">error</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface relative z-10">84</div>
+</div>
+<!-- Stat Card 4 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-md flex flex-col rounded shadow-none relative overflow-hidden group">
+<div class="absolute right-0 top-0 w-16 h-16 bg-gradient-to-bl from-surface-variant to-transparent opacity-50"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Running</span>
+<span class="material-symbols-outlined text-secondary">autorenew</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface relative z-10">62</div>
+</div>
+</section>
+<!-- Bento Grid Main Content -->
+<div class="grid grid-cols-12 gap-grid-gutter">
+<!-- Left Column: Form -->
+<section class="col-span-12 xl:col-span-4 flex flex-col gap-grid-gutter">
+<div class="bg-surface-container-lowest border border-outline-variant p-md rounded shadow-none">
+<div class="border-b border-outline-variant pb-sm mb-md flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings: 'FILL' 1;">add_box</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">Job Creation</h2>
+</div>
+<form class="flex flex-col gap-md">
+<div class="flex flex-col gap-xs">
+<label class="font-label-caps text-label-caps text-on-surface uppercase" for="repoUrl">GitHub Repo URL <span class="text-error">*</span></label>
+<input class="w-full h-10 px-3 bg-surface border border-outline-variant rounded text-on-surface font-body-main text-body-main focus:ring-1 focus:ring-secondary-container focus:border-secondary-container focus:outline-none placeholder:text-outline-variant transition-colors" id="repoUrl" placeholder="https://github.com/org/repo" type="url"/>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="font-label-caps text-label-caps text-on-surface uppercase" for="branchName">Branch <span class="text-outline">(Optional)</span></label>
+<input class="w-full h-10 px-3 bg-surface border border-outline-variant rounded text-on-surface font-body-main text-body-main focus:ring-1 focus:ring-secondary-container focus:border-secondary-container focus:outline-none placeholder:text-outline-variant transition-colors" id="branchName" placeholder="main" type="text"/>
+</div>
+<div class="pt-sm border-t border-outline-variant mt-sm">
+<button class="w-full h-10 bg-primary text-on-primary rounded font-label-caps text-label-caps uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-tint transition-colors active:scale-[0.99]" type="submit">
+                                Create Job
+                                <span class="material-symbols-outlined text-[18px]">rocket_launch</span>
+</button>
+</div>
+</form>
+</div>
+<!-- Small Info Widget -->
+<div class="bg-surface-container-low border border-outline-variant p-md rounded shadow-none">
+<h3 class="font-label-caps text-label-caps text-on-surface uppercase mb-xs">System Status</h3>
+<div class="flex items-center gap-2 font-body-sm text-body-sm text-on-surface-variant">
+<div class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></div>
+                         Engine Capacity: 84% Available
+                     </div>
+</div>
+</section>
+<!-- Right Column: Data Table -->
+<section class="col-span-12 xl:col-span-8">
+<div class="bg-surface-container-lowest border border-outline-variant rounded shadow-none h-full flex flex-col">
+<div class="p-md border-b border-outline-variant flex justify-between items-center bg-gradient-to-b from-surface-container-lowest to-surface">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant">list_alt</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">Recent Jobs</h2>
+</div>
+<button class="text-secondary font-label-caps text-label-caps uppercase hover:underline flex items-center gap-1">
+                            View All <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface border-b border-outline-variant">
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">Repository</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">Branch</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">Stack</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">Status</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">Created</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap text-right">Action</th>
+</tr>
+</thead>
+<tbody class="font-body-main text-body-main text-on-surface">
+<!-- Row 1 -->
+<tr class="border-b border-outline-variant hover:bg-surface transition-colors group">
+<td class="py-sm px-md font-code-block text-code-block text-on-secondary-fixed">org/api-service</td>
+<td class="py-sm px-md font-code-block text-code-block text-outline">main</td>
+<td class="py-sm px-md">Node.js</td>
+<td class="py-sm px-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-tertiary-fixed border border-tertiary-fixed-dim bg-opacity-20">
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim"></div>
+<span class="font-label-caps text-[10px] text-on-tertiary-container uppercase tracking-wider">Running</span>
+</div>
+</td>
+<td class="py-sm px-md text-on-surface-variant font-code-block text-code-block">2m ago</td>
+<td class="py-sm px-md text-right">
+<a class="font-label-caps text-label-caps text-secondary hover:text-on-secondary-container uppercase inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" href="#">
+                                            Details <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</a>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="border-b border-outline-variant hover:bg-surface transition-colors group">
+<td class="py-sm px-md font-code-block text-code-block text-on-secondary-fixed">org/worker-queue</td>
+<td class="py-sm px-md font-code-block text-code-block text-outline">feat/auth</td>
+<td class="py-sm px-md">Python</td>
+<td class="py-sm px-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-surface-container border border-outline-variant">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+<span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Succeeded</span>
+</div>
+</td>
+<td class="py-sm px-md text-on-surface-variant font-code-block text-code-block">45m ago</td>
+<td class="py-sm px-md text-right">
+<a class="font-label-caps text-label-caps text-secondary hover:text-on-secondary-container uppercase inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" href="#">
+                                            Details <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</a>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="border-b border-outline-variant hover:bg-surface transition-colors group">
+<td class="py-sm px-md font-code-block text-code-block text-on-secondary-fixed">org/legacy-monolith</td>
+<td class="py-sm px-md font-code-block text-code-block text-outline">master</td>
+<td class="py-sm px-md">Java</td>
+<td class="py-sm px-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-error-container border border-[#ffb4ab]">
+<div class="w-1.5 h-1.5 rounded-full bg-error"></div>
+<span class="font-label-caps text-[10px] text-on-error-container uppercase tracking-wider">Failed</span>
+</div>
+</td>
+<td class="py-sm px-md text-on-surface-variant font-code-block text-code-block">2h ago</td>
+<td class="py-sm px-md text-right">
+<a class="font-label-caps text-label-caps text-secondary hover:text-on-secondary-container uppercase inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" href="#">
+                                            Details <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</a>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="border-b border-outline-variant hover:bg-surface transition-colors group">
+<td class="py-sm px-md font-code-block text-code-block text-on-secondary-fixed">org/landing-page</td>
+<td class="py-sm px-md font-code-block text-code-block text-outline">main</td>
+<td class="py-sm px-md">React</td>
+<td class="py-sm px-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-surface-container border border-outline-variant">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+<span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Succeeded</span>
+</div>
+</td>
+<td class="py-sm px-md text-on-surface-variant font-code-block text-code-block">5h ago</td>
+<td class="py-sm px-md text-right">
+<a class="font-label-caps text-label-caps text-secondary hover:text-on-secondary-container uppercase inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" href="#">
+                                            Details <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</a>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface transition-colors group">
+<td class="py-sm px-md font-code-block text-code-block text-on-secondary-fixed">org/data-pipeline</td>
+<td class="py-sm px-md font-code-block text-code-block text-outline">etl-fix</td>
+<td class="py-sm px-md">Go</td>
+<td class="py-sm px-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-surface-container border border-outline-variant">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+<span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Succeeded</span>
+</div>
+</td>
+<td class="py-sm px-md text-on-surface-variant font-code-block text-code-block">1d ago</td>
+<td class="py-sm px-md text-right">
+<a class="font-label-caps text-label-caps text-secondary hover:text-on-secondary-container uppercase inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" href="#">
+                                            Details <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</a>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>

@@ -9,41 +9,59 @@ export function DashboardPage() {
   const jobs = jobsQuery.data ?? [];
   const successCount = jobs.filter((job) => job.status === "Succeeded").length;
   const failedCount = jobs.filter((job) => job.status === "Failed").length;
+  const runningCount = jobs.filter((job) => job.status === "Running").length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
-        eyebrow="Frontend MVP"
-        title="Containerization control room"
-        description="Submit GitHub repositories, watch worker progress, inspect generated container artifacts and verify Docker build results."
+        eyebrow="Control Room"
+        title="DOCKERIZER"
+        description="Containerize your GitHub repositories with precision."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Panel title="Create a job" description="Start a new backend workflow with repository URL and optional branch.">
-          <JobCreateForm />
-        </Panel>
+      <section className="grid gap-4 xl:grid-cols-4">
+        <StatCard label="Total Jobs" value={jobs.length} icon="query_stats" />
+        <StatCard label="Succeeded" value={successCount} icon="check_circle" iconTone="text-emerald-600" />
+        <StatCard label="Failed" value={failedCount} icon="error" iconTone="text-rose-700" />
+        <StatCard label="Running" value={runningCount} icon="autorenew" iconTone="text-secondary" />
+      </section>
 
-        <Panel title="Live counters" description="Quick visibility into the current state of recent processing.">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard label="Total" value={jobs.length} />
-            <StatCard label="Succeeded" value={successCount} accent="text-mint" />
-            <StatCard label="Failed" value={failedCount} accent="text-rose" />
-          </div>
-        </Panel>
+      <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-12 xl:col-span-4">
+          <Panel title="Job Creation">
+            <JobCreateForm />
+          </Panel>
+        </div>
+
+        <div className="col-span-12 xl:col-span-8">
+          <Panel title="Recent Jobs" description="Jobs refresh automatically every few seconds.">
+            <JobList jobs={jobs.slice(0, 8)} mode="dashboard" />
+          </Panel>
+        </div>
       </div>
 
-      <Panel title="Recent jobs" description="Jobs refresh automatically every few seconds.">
-        <JobList jobs={jobs.slice(0, 8)} />
-      </Panel>
+      <div className="grid gap-4 xl:grid-cols-4">
+        <Panel title="System Status">
+          <div className="flex items-center gap-2 text-sm text-steel">
+            <span className="h-2 w-2 rounded-full bg-mint" />
+            Engine Capacity: 84% Available
+          </div>
+        </Panel>
+        <div className="xl:col-span-3" />
+      </div>
     </div>
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
+function StatCard({ label, value, icon, iconTone }: { label: string; value: number; icon: string; iconTone?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-      <p className="text-xs uppercase tracking-[0.2em] text-steel">{label}</p>
-      <p className={`mt-2 text-3xl font-semibold text-ink ${accent ?? ""}`}>{value}</p>
+    <div className="relative overflow-hidden rounded border border-outline bg-white p-4">
+      <div className="absolute right-0 top-0 h-16 w-16 bg-gradient-to-bl from-variant to-transparent opacity-50" />
+      <div className="relative z-10 flex items-start justify-between">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-steel">{label}</p>
+        <span className={`material-symbols-outlined text-[18px] ${iconTone ?? "text-slate-400"}`}>{icon}</span>
+      </div>
+      <p className="relative z-10 mt-3 text-[32px] font-bold tracking-[-0.02em] text-ink">{value}</p>
     </div>
   );
 }

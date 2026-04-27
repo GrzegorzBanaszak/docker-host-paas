@@ -11,9 +11,9 @@ export function FilePreviewPanel({ name, content }: FilePreviewPanelProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200">
-      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-ink">{name}</div>
-      <pre className="max-h-[28rem] overflow-auto bg-white p-4 font-mono text-xs leading-6 text-ink">{content}</pre>
+    <div className="overflow-hidden rounded border border-outline bg-white">
+      <div className="border-b border-outline bg-slate-50 px-4 py-3 text-sm font-semibold text-ink">{name}</div>
+      <pre className="max-h-[28rem] overflow-auto bg-[#fafafa] p-4 font-mono text-[11px] leading-5 text-ink">{content}</pre>
     </div>
   );
 }

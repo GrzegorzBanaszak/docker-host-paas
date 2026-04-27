@@ -7,6 +7,8 @@ export type JobListItem = {
   status: JobStatus;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
+  publishedPort?: number | null;
+  deploymentUrl?: string | null;
   createdAtUtc: string;
 };
 
@@ -17,9 +19,15 @@ export type JobDetails = {
   status: JobStatus;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
+  containerId?: string | null;
+  containerName?: string | null;
+  containerPort?: number | null;
+  publishedPort?: number | null;
+  deploymentUrl?: string | null;
   errorMessage?: string | null;
   createdAtUtc: string;
   startedAtUtc?: string | null;
+  deployedAtUtc?: string | null;
   completedAtUtc?: string | null;
 };
 

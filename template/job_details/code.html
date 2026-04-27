@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dockerizer - Job Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed": "#001e2f",
+                      "on-background": "#0b1c30",
+                      "surface": "#f8f9ff",
+                      "on-error-container": "#93000a",
+                      "on-secondary-container": "#004666",
+                      "tertiary": "#000000",
+                      "surface-bright": "#f8f9ff",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "on-primary": "#ffffff",
+                      "surface-tint": "#565e74",
+                      "on-tertiary-container": "#009668",
+                      "on-secondary-fixed-variant": "#004c6e",
+                      "surface-variant": "#d3e4fe",
+                      "primary-fixed": "#dae2fd",
+                      "inverse-on-surface": "#eaf1ff",
+                      "surface-container-lowest": "#ffffff",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "tertiary-fixed": "#6ffbbe",
+                      "primary-fixed-dim": "#bec6e0",
+                      "surface-container-high": "#dce9ff",
+                      "error-container": "#ffdad6",
+                      "on-tertiary-fixed": "#002113",
+                      "on-primary-fixed": "#131b2e",
+                      "surface-container-low": "#eff4ff",
+                      "error": "#ba1a1a",
+                      "on-surface": "#0b1c30",
+                      "outline": "#76777d",
+                      "primary-container": "#131b2e",
+                      "inverse-primary": "#bec6e0",
+                      "on-error": "#ffffff",
+                      "secondary-fixed-dim": "#89ceff",
+                      "tertiary-container": "#002113",
+                      "on-primary-fixed-variant": "#3f465c",
+                      "secondary-container": "#39b8fd",
+                      "on-primary-container": "#7c839b",
+                      "primary": "#000000",
+                      "outline-variant": "#c6c6cd",
+                      "on-surface-variant": "#45464d",
+                      "inverse-surface": "#213145",
+                      "surface-dim": "#cbdbf5",
+                      "on-tertiary": "#ffffff",
+                      "background": "#f8f9ff",
+                      "surface-container-highest": "#d3e4fe",
+                      "on-secondary": "#ffffff",
+                      "surface-container": "#e5eeff",
+                      "secondary": "#006591",
+                      "secondary-fixed": "#c9e6ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "sm": "8px",
+                      "base": "4px",
+                      "md": "16px",
+                      "grid-margin": "24px",
+                      "xs": "4px",
+                      "lg": "24px",
+                      "xl": "32px",
+                      "grid-gutter": "16px"
+              },
+              "fontFamily": {
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "body-main": [
+                              "Inter"
+                      ],
+                      "code-block": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-caps": [
+                              "11px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-main": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "code-block": [
+                              "13px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .blueprint-bg {
+            background-color: theme('colors.background');
+            background-image: linear-gradient(theme('colors.outline-variant') 1px, transparent 1px),
+                              linear-gradient(90deg, theme('colors.outline-variant') 1px, transparent 1px);
+            background-size: 16px 16px;
+            background-position: -1px -1px;
+        }
+        .blueprint-bg::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at center, transparent 0%, theme('colors.background') 80%);
+            pointer-events: none;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-main text-body-main antialiased blueprint-bg min-h-screen flex flex-col relative">
+<!-- TopNavBar -->
+<nav class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-inter text-sm font-medium tracking-tight docked full-width top-0 border-b border-b border-slate-200 dark:border-slate-800 flat no-shadows flex justify-between items-center w-full h-14 px-6 z-50 sticky top-0">
+<div class="flex items-center gap-6">
+<span class="text-lg font-black tracking-tighter text-slate-900 dark:text-slate-50 uppercase">DOCKERIZER</span>
+<div class="hidden md:flex gap-4">
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 active:opacity-80 transition-opacity" href="#">Dashboard</a>
+<a class="text-slate-900 dark:text-white border-b-2 border-slate-900 dark:border-slate-50 pb-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 active:opacity-80 transition-opacity translate-y-[10px]" href="#">Jobs</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 active:opacity-80 transition-opacity" href="#">Images</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 active:opacity-80 transition-opacity" href="#">Clusters</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 active:opacity-80 transition-opacity" href="#">Registry</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+<input class="bg-slate-100 border-none rounded-sm pl-8 pr-3 py-1 text-sm focus:ring-1 focus:ring-slate-400 focus:bg-white transition-all w-48" placeholder="Search..." type="text"/>
+</div>
+<button class="text-slate-500 hover:text-slate-700 transition-colors"><span class="material-symbols-outlined text-[20px]">notifications</span></button>
+<button class="text-slate-500 hover:text-slate-700 transition-colors"><span class="material-symbols-outlined text-[20px]">settings</span></button>
+<button class="text-slate-500 hover:text-slate-700 transition-colors"><span class="material-symbols-outlined text-[20px]">help</span></button>
+<img alt="System Architect Avatar" class="w-8 h-8 rounded-full border border-slate-200" data-alt="System Architect Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvsCOr-JNy-9puH4HjFZwSRelZuzXBWHRktwA-DTKlvZOq2y8oGhPF1mpKWIV2t6gv5b7LHDRISnFXcG5TIUTFTRpVvm7g3NwlxLfnwdOyULEp5opBunnv_RIWhHy4tw27pm-eNy-FRDNPIRq2hAoeY1Z9rF3Faybq5TMkjSV975W6weWm73ze_np1arxdzZy4xIQXjDzCrRK9ArZcvw8i83dWfAN3XqAQ2I97MC4AzA9Ciu1SBjiAhiGWeRLGrb_-beMX09n_0hU"/>
+</div>
+</nav>
+<!-- SideNavBar (Hidden on md for this layout as it's a detail view, but code is here as requested by components. Will hide for detail view per canvas focus rule) -->
+<!-- Suppressed SideNavBar per "Task-Focused: Any sub-page featuring a 'Close' or 'Back' action" -->
+<main class="flex-1 w-full max-w-7xl mx-auto p-grid-margin z-10 grid grid-cols-1 lg:grid-cols-12 gap-grid-gutter items-start">
+<!-- Header / Controls (Spans full width) -->
+<header class="lg:col-span-12 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<a class="text-on-surface-variant hover:text-on-background flex items-center" href="#"><span class="material-symbols-outlined text-[16px]">arrow_back</span></a>
+<h1 class="font-headline-md text-headline-md text-on-background">Job <span class="font-code-block text-on-surface-variant">#DKR-8892</span></h1>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-emerald-100 border border-emerald-200 text-emerald-800 font-label-caps text-label-caps tracking-wide">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        SUCCEEDED
+                    </span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant font-body-sm text-body-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">code</span> github.com/org/microservice-auth</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">schedule</span> 14m ago</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">timer</span> 2m 14s</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 bg-surface border border-outline-variant text-on-background rounded hover:bg-surface-variant transition-colors font-body-sm text-body-sm font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">cancel</span> Cancel
+                </button>
+<button class="px-3 py-1.5 bg-primary text-on-primary rounded hover:bg-inverse-surface transition-colors font-body-sm text-body-sm font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">refresh</span> Retry
+                </button>
+</div>
+</header>
+<!-- Left Column: Timeline & Summary -->
+<div class="lg:col-span-3 flex flex-col gap-grid-gutter">
+<!-- Summary Panel -->
+<div class="bg-surface border border-outline-variant rounded-sm p-4">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant mb-3 uppercase border-b border-outline-variant pb-2">Artifacts</h3>
+<div class="space-y-3">
+<div>
+<span class="block font-body-sm text-body-sm text-on-surface-variant mb-1">Detected Stack</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[16px]">javascript</span>
+<span class="font-code-block text-code-block text-on-background">Node.js v20.x</span>
+</div>
+</div>
+<div>
+<span class="block font-body-sm text-body-sm text-on-surface-variant mb-1">Image Tag</span>
+<div class="bg-surface-variant border border-outline-variant px-2 py-1 rounded-sm flex justify-between items-center group cursor-pointer hover:bg-surface-dim">
+<span class="font-code-block text-[11px] text-on-background truncate">us-east1-docker.pkg.dev/proj/auth:latest</span>
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary">content_copy</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Execution Timeline -->
+<div class="bg-surface border border-outline-variant rounded-sm p-4 flex-1">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant mb-4 uppercase border-b border-outline-variant pb-2">Execution Pipeline</h3>
+<div class="relative pl-3 space-y-6 before:content-[''] before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-[1px] before:bg-outline-variant">
+<!-- Step 1 -->
+<div class="relative">
+<div class="absolute -left-[19px] top-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-surface z-10"></div>
+<div class="pl-4">
+<h4 class="font-body-sm text-body-sm font-semibold text-on-background">Queued</h4>
+<p class="font-body-sm text-[11px] text-on-surface-variant">10:42:01 AM</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="relative">
+<div class="absolute -left-[19px] top-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-surface z-10"></div>
+<div class="pl-4">
+<h4 class="font-body-sm text-body-sm font-semibold text-on-background">Clone Repository</h4>
+<p class="font-body-sm text-[11px] text-on-surface-variant">10:42:05 AM (4s)</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="relative">
+<div class="absolute -left-[19px] top-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-surface z-10"></div>
+<div class="pl-4">
+<h4 class="font-body-sm text-body-sm font-semibold text-on-background">Analyze Context</h4>
+<p class="font-body-sm text-[11px] text-on-surface-variant">10:42:15 AM (10s)</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="relative">
+<div class="absolute -left-[19px] top-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-surface z-10"></div>
+<div class="pl-4">
+<h4 class="font-body-sm text-body-sm font-semibold text-on-background">Generate Dockerfile</h4>
+<p class="font-body-sm text-[11px] text-on-surface-variant">10:42:20 AM (5s)</p>
+</div>
+</div>
+<!-- Step 5 -->
+<div class="relative">
+<div class="absolute -left-[19px] top-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-surface z-10 ring-2 ring-blue-200"></div>
+<div class="pl-4">
+<h4 class="font-body-sm text-body-sm font-semibold text-on-background">Build Image</h4>
+<p class="font-body-sm text-[11px] text-blue-600 font-medium">In Progress...</p>
+</div>
+</div>
+<!-- Step 6 -->
+<div class="relative">
+<div class="absolute -left-[19px] top-1 w-3 h-3 bg-surface border border-outline-variant rounded-full z-10"></div>
+<div class="pl-4">
+<h4 class="font-body-sm text-body-sm font-medium text-on-surface-variant">Push to Registry</h4>
+<p class="font-body-sm text-[11px] text-outline">Pending</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Center Column: Log Viewer -->
+<div class="lg:col-span-6 flex flex-col border border-outline-variant rounded-sm bg-[#0A0A0A] overflow-hidden shadow-[0_4px_12px_rgba(15,23,42,0.08)] h-[600px]">
+<div class="flex justify-between items-center px-4 py-2 bg-[#1A1A1A] border-b border-[#333]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-slate-300">terminal</span>
+<span class="font-label-caps text-label-caps text-slate-300 uppercase tracking-wider">Build Logs</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-blue-900/30 border border-blue-500/30 text-blue-400 font-label-caps text-[10px]">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        LIVE
+                    </span>
+<button class="text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined text-[16px]">vertical_align_bottom</span></button>
+<button class="text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined text-[16px]">fullscreen</span></button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-4 font-code-block text-code-block text-slate-300 leading-relaxed space-y-1">
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">1</span><span class="text-slate-400">Pulling base image node:20-alpine...</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">2</span><span class="text-emerald-400">Status: Downloaded newer image for node:20-alpine</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">3</span><span>Step 1/10 : FROM node:20-alpine AS builder</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">4</span><span class="text-slate-500">---&gt; 3b369...</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">5</span><span>Step 2/10 : WORKDIR /app</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">6</span><span class="text-slate-500">---&gt; Running in a4f8...</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">7</span><span>Step 3/10 : COPY package*.json ./</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">8</span><span>Step 4/10 : RUN npm ci --omit=dev</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">9</span><span class="text-slate-400">npm WARN config omit Option "omit" is deprecated...</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">10</span><span>added 156 packages, and audited 157 packages in 3s</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">11</span><span class="text-emerald-400">12 packages are looking for funding</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">12</span><span>Step 5/10 : COPY . .</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">13</span><span>Step 6/10 : RUN npm run build</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">14</span><span class="text-blue-400">&gt; microservice-auth@1.0.0 build</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">15</span><span class="text-blue-400">&gt; tsc -p tsconfig.json</span></div>
+<div class="flex"><span class="text-slate-600 w-8 text-right pr-3 select-none">16</span><span class="animate-pulse">_</span></div>
+</div>
+</div>
+<!-- Right Column: Generated Files -->
+<div class="lg:col-span-3 flex flex-col border border-outline-variant rounded-sm bg-surface overflow-hidden h-[600px]">
+<div class="px-3 py-2 bg-surface border-b border-outline-variant flex justify-between items-center">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Generated Files</span>
+</div>
+<div class="flex flex-col h-full">
+<!-- File List -->
+<div class="border-b border-outline-variant bg-surface-lowest">
+<div class="px-3 py-1.5 flex items-center gap-2 bg-surface-variant text-on-background cursor-pointer text-body-sm font-medium border-l-2 border-primary">
+<span class="material-symbols-outlined text-[16px] text-blue-600">description</span>
+                        Dockerfile
+                    </div>
+<div class="px-3 py-1.5 flex items-center gap-2 text-on-surface-variant hover:bg-surface cursor-pointer text-body-sm transition-colors border-l-2 border-transparent">
+<span class="material-symbols-outlined text-[16px] text-slate-500">description</span>
+                        .dockerignore
+                    </div>
+</div>
+<!-- Code Preview -->
+<div class="flex-1 bg-[#FAFAFA] p-3 overflow-y-auto font-code-block text-[11px] leading-snug">
+<pre class="text-slate-800"><span class="text-purple-700">FROM</span> node:20-alpine AS builder
+
+<span class="text-purple-700">WORKDIR</span> /app
+
+<span class="text-slate-500"># Cache deps</span>
+<span class="text-purple-700">COPY</span> package*.json ./
+<span class="text-purple-700">RUN</span> npm ci --omit=dev
+
+<span class="text-slate-500"># Build source</span>
+<span class="text-purple-700">COPY</span> . .
+<span class="text-purple-700">RUN</span> npm run build
+
+<span class="text-slate-500"># Final stage</span>
+<span class="text-purple-700">FROM</span> node:20-alpine
+
+<span class="text-purple-700">WORKDIR</span> /app
+<span class="text-purple-700">COPY</span> --from=builder /app/dist ./dist
+<span class="text-purple-700">COPY</span> --from=builder /app/node_modules ./node_modules
+<span class="text-purple-700">COPY</span> package.json ./
+
+<span class="text-purple-700">USER</span> node
+<span class="text-purple-700">EXPOSE</span> 3000
+
+<span class="text-purple-700">CMD</span> ["node", "dist/index.js"]
+</pre>
+</div>
+</div>
+</div>
+</main>
+</body></html>

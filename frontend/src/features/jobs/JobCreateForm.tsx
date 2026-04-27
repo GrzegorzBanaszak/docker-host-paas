@@ -20,31 +20,31 @@ export function JobCreateForm() {
 
   return (
     <form className="space-y-4" onSubmit={onSubmit}>
-      <div>
-        <label className="mb-2 block text-sm font-medium text-ink" htmlFor="repositoryUrl">
-          GitHub repository URL
+      <div className="space-y-1">
+        <label className="block text-[11px] font-bold uppercase tracking-[0.12em] text-ink" htmlFor="repositoryUrl">
+          GitHub Repo URL <span className="text-rose">*</span>
         </label>
         <input
           id="repositoryUrl"
           type="url"
           placeholder="https://github.com/owner/repo"
-          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-sky focus:ring-2 focus:ring-sky/20"
+          className="h-10 w-full rounded border border-outline bg-surface px-3 text-sm text-ink outline-none transition focus:border-sky focus:ring-1 focus:ring-sky"
           {...form.register("repositoryUrl")}
         />
         {form.formState.errors.repositoryUrl ? (
-          <p className="mt-2 text-xs font-medium text-rose">{form.formState.errors.repositoryUrl.message}</p>
+          <p className="text-xs font-medium text-rose">{form.formState.errors.repositoryUrl.message}</p>
         ) : null}
       </div>
 
-      <div>
-        <label className="mb-2 block text-sm font-medium text-ink" htmlFor="branch">
+      <div className="space-y-1">
+        <label className="block text-[11px] font-bold uppercase tracking-[0.12em] text-ink" htmlFor="branch">
           Branch
         </label>
         <input
           id="branch"
           type="text"
           placeholder="main"
-          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-sky focus:ring-2 focus:ring-sky/20"
+          className="h-10 w-full rounded border border-outline bg-surface px-3 text-sm text-ink outline-none transition focus:border-sky focus:ring-1 focus:ring-sky"
           {...form.register("branch")}
         />
       </div>
@@ -58,7 +58,7 @@ export function JobCreateForm() {
       <button
         type="submit"
         disabled={createJob.isPending}
-        className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-10 w-full items-center justify-center gap-2 rounded border border-slate-900 bg-slate-900 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {createJob.isPending ? "Submitting..." : "Create job"}
       </button>

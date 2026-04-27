@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dockerizer - Job Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed": "#001e2f",
+                    "on-background": "#0b1c30",
+                    "surface": "#f8f9ff",
+                    "on-error-container": "#93000a",
+                    "on-secondary-container": "#004666",
+                    "tertiary": "#000000",
+                    "surface-bright": "#f8f9ff",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#565e74",
+                    "on-tertiary-container": "#009668",
+                    "on-secondary-fixed-variant": "#004c6e",
+                    "surface-variant": "#d3e4fe",
+                    "primary-fixed": "#dae2fd",
+                    "inverse-on-surface": "#eaf1ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "tertiary-fixed": "#6ffbbe",
+                    "primary-fixed-dim": "#bec6e0",
+                    "surface-container-high": "#dce9ff",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#002113",
+                    "on-primary-fixed": "#131b2e",
+                    "surface-container-low": "#eff4ff",
+                    "error": "#ba1a1a",
+                    "on-surface": "#0b1c30",
+                    "outline": "#76777d",
+                    "primary-container": "#131b2e",
+                    "inverse-primary": "#bec6e0",
+                    "on-error": "#ffffff",
+                    "secondary-fixed-dim": "#89ceff",
+                    "tertiary-container": "#002113",
+                    "on-primary-fixed-variant": "#3f465c",
+                    "secondary-container": "#39b8fd",
+                    "on-primary-container": "#7c839b",
+                    "primary": "#000000",
+                    "outline-variant": "#c6c6cd",
+                    "on-surface-variant": "#45464d",
+                    "inverse-surface": "#213145",
+                    "surface-dim": "#cbdbf5",
+                    "on-tertiary": "#ffffff",
+                    "background": "#f8f9ff",
+                    "surface-container-highest": "#d3e4fe",
+                    "on-secondary": "#ffffff",
+                    "surface-container": "#e5eeff",
+                    "secondary": "#006591",
+                    "secondary-fixed": "#c9e6ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "sm": "8px",
+                    "base": "4px",
+                    "md": "16px",
+                    "grid-margin": "24px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "xl": "32px",
+                    "grid-gutter": "16px"
+            },
+            "fontFamily": {
+                    "display-lg": [
+                            "Inter"
+                    ],
+                    "label-caps": [
+                            "Inter"
+                    ],
+                    "body-main": [
+                            "Inter"
+                    ],
+                    "code-block": [
+                            "JetBrains Mono"
+                    ],
+                    "headline-md": [
+                            "Inter"
+                    ],
+                    "body-sm": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "display-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "label-caps": [
+                            "11px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-main": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "code-block": [
+                            "13px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-md": [
+                            "20px",
+                            {
+                                    "lineHeight": "28px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        /* Blueprint Pattern */
+        .bg-blueprint {
+            background-color: #f8f9ff;
+            background-image: 
+                linear-gradient(rgba(226, 232, 240, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(226, 232, 240, 0.5) 1px, transparent 1px);
+            background-size: 16px 16px;
+        }
+        
+        .table-row-hover:hover {
+            background-color: rgba(211, 228, 254, 0.3); /* surface-variant at low opacity */
+        }
+    </style>
+</head>
+<body class="bg-blueprint text-on-background font-body-main text-body-main min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-white dark:bg-slate-950 docked full-width top-0 border-b border-b border-slate-200 dark:border-slate-800 flat no-shadows flex justify-between items-center w-full h-14 px-6 z-50">
+<div class="flex items-center gap-md">
+<span class="text-lg font-black tracking-tighter text-slate-900 dark:text-slate-50 uppercase">DOCKERIZER</span>
+<div class="hidden md:flex items-center relative ml-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+<span class="material-symbols-outlined absolute left-3 text-[18px]">search</span>
+<input class="pl-10 pr-4 py-1.5 bg-surface-container-low border border-outline-variant rounded focus:ring-1 focus:ring-[#39b8fd] focus:border-[#39b8fd] outline-none text-body-sm font-body-sm w-64 transition-all" placeholder="Search resources..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 rounded active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 rounded active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors duration-150 rounded active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">help</span>
+</button>
+<div class="h-8 w-8 rounded overflow-hidden border border-outline-variant ml-sm cursor-pointer">
+<img alt="System Architect Avatar" class="w-full h-full object-cover" data-alt="Portrait of a male professional, short hair, looking directly at camera, soft lighting, neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5oLVkshI_RGGf-7KfYBX29hbVuy8_cb1kfIORExwNy7G4MKVYwyMIhLR8xuYtC5ETMftZtF5aUMwfhwt_sz_tHDpOOolcDXpxYPY6Gq_Ncc5mUfbGANXH2RZmYtnD7JmRtpt0MJpN0AkGHKbgpC1I3jv1JOSyrnGYkQPZdpwNlLXoIKN4-gmqj-roWuKz8U_oh0yyDoNaWpmCCcu6ngmy7mu5qRkZD9jUFuVGZ1F8GiWKyyyfWqrIjit-3VWDUlBMJu8XtdSD9NA"/>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden relative">
+<!-- SideNavBar -->
+<nav class="hidden md:flex bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm docked left-0 h-full w-64 border-r border-r border-slate-200 dark:border-slate-800 flat no-shadows fixed left-0 top-14 bottom-0 w-64 flex flex-col p-4 z-40">
+<div class="mb-lg px-2">
+<h2 class="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-1">Control Room</h2>
+<p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Engine v2.4.0</p>
+</div>
+<button class="mb-md w-full bg-[#0F172A] text-white py-2 px-4 rounded border border-[#0F172A] font-body-main text-body-main font-medium flex items-center justify-center gap-2 hover:bg-opacity-90 transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Job
+            </button>
+<ul class="flex-1 flex flex-col gap-1 font-inter text-[13px] font-semibold text-slate-900 dark:text-slate-50">
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 rounded active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]">dashboard</span>
+                        Dashboard
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-sm border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">terminal</span>
+                        Jobs
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 rounded active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]">layers</span>
+                        Images
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 rounded active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]">account_tree</span>
+                        Clusters
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 rounded active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]">database</span>
+                        Registry
+                    </a>
+</li>
+</ul>
+<div class="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800">
+<ul class="flex flex-col gap-1 font-inter text-[13px] font-semibold text-slate-900 dark:text-slate-50">
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 rounded active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]">menu_book</span>
+                            Docs
+                        </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all duration-200 rounded active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[18px]">support_agent</span>
+                            Support
+                        </a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 p-grid-margin overflow-y-auto h-[calc(100vh-56px)]">
+<div class="max-w-7xl mx-auto space-y-md">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-lg">
+<div>
+<h1 class="font-headline-md text-headline-md text-on-background">Job Management</h1>
+<p class="text-on-surface-variant font-body-sm text-body-sm mt-1">Monitor and manage container build and deployment pipelines.</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="bg-surface border border-outline-variant text-on-surface hover:bg-surface-variant px-3 py-1.5 rounded flex items-center gap-2 text-body-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-[16px]">refresh</span>
+                            Refresh
+                        </button>
+<button class="bg-surface border border-outline-variant text-on-surface hover:bg-surface-variant px-3 py-1.5 rounded flex items-center gap-2 text-body-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-[16px]">download</span>
+                            Export
+                        </button>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] p-3 rounded flex flex-col md:flex-row gap-4 items-center justify-between">
+<div class="flex flex-wrap items-center gap-2">
+<span class="text-on-surface-variant font-body-sm text-body-sm mr-2 font-medium">Status:</span>
+<button class="bg-surface-variant text-on-surface border border-[#E2E8F0] px-3 py-1 rounded text-body-sm font-medium hover:bg-surface-dim transition-colors flex items-center gap-1">
+                            All
+                        </button>
+<button class="bg-surface-container-lowest text-on-surface-variant border border-[#E2E8F0] px-3 py-1 rounded text-body-sm hover:bg-surface-variant transition-colors flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span> Queued
+                        </button>
+<button class="bg-surface-container-lowest text-on-surface-variant border border-[#E2E8F0] px-3 py-1 rounded text-body-sm hover:bg-surface-variant transition-colors flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-[#10B981]"></span> Running
+                        </button>
+<button class="bg-surface-container-lowest text-on-surface-variant border border-[#E2E8F0] px-3 py-1 rounded text-body-sm hover:bg-surface-variant transition-colors flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-[#059669]"></span> Succeeded
+                        </button>
+<button class="bg-surface-container-lowest text-on-surface-variant border border-[#E2E8F0] px-3 py-1 rounded text-body-sm hover:bg-surface-variant transition-colors flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-[#E11D48]"></span> Failed
+                        </button>
+<button class="bg-surface-container-lowest text-on-surface-variant border border-[#E2E8F0] px-3 py-1 rounded text-body-sm hover:bg-surface-variant transition-colors flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-slate-600"></span> Canceled
+                        </button>
+</div>
+<div class="relative w-full md:w-auto">
+<span class="material-symbols-outlined absolute left-2.5 top-1.5 text-[16px] text-outline">search</span>
+<input class="w-full md:w-64 pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-[#E2E8F0] rounded text-body-sm font-body-sm focus:ring-1 focus:ring-[#39b8fd] focus:border-[#39b8fd] outline-none transition-all" placeholder="Filter by Repository URL..." type="text"/>
+</div>
+</div>
+<!-- Jobs Table Panel -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded overflow-hidden flex flex-col relative">
+<div class="h-1 bg-gradient-to-r from-transparent via-[#E2E8F0] to-transparent opacity-50 absolute top-0 left-0 w-full"></div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Job ID</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Status</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Repository</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Branch</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Stack</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Image Tag</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Created At</th>
+<th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Action</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm">
+<!-- Row 1: Running -->
+<tr class="border-b border-[#E2E8F0] table-row-hover transition-colors">
+<td class="py-3 px-4 font-code-block text-code-block text-on-surface">#job-8a7f9c2</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#10B981] bg-[#D1FAE5] text-[#047857]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span>
+<span class="font-medium text-[11px]">Running</span>
+</div>
+</td>
+<td class="py-3 px-4 text-secondary font-medium">github.com/acmecorp/frontend-web</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">call_split</span>
+                                            main
+                                        </div>
+</td>
+<td class="py-3 px-4">
+<span class="px-2 py-1 bg-surface-container border border-outline-variant rounded text-[11px] font-medium text-on-surface-variant">Node.js</span>
+</td>
+<td class="py-3 px-4 font-code-block text-[11px] text-on-surface-variant">v2.4.0-rc1</td>
+<td class="py-3 px-4 text-on-surface-variant">2 mins ago</td>
+<td class="py-3 px-4 text-right">
+<button class="px-3 py-1 bg-surface border border-outline-variant text-on-surface rounded hover:bg-surface-variant transition-colors font-medium">Details</button>
+</td>
+</tr>
+<!-- Row 2: Failed -->
+<tr class="border-b border-[#E2E8F0] table-row-hover transition-colors">
+<td class="py-3 px-4 font-code-block text-code-block text-on-surface">#job-8a7f9c1</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#E11D48] bg-[#FFE4E6] text-[#BE123C]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#E11D48]"></span>
+<span class="font-medium text-[11px]">Failed</span>
+</div>
+</td>
+<td class="py-3 px-4 text-secondary font-medium">github.com/acmecorp/auth-service</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">call_split</span>
+                                            feature/oauth-fix
+                                        </div>
+</td>
+<td class="py-3 px-4">
+<span class="px-2 py-1 bg-surface-container border border-outline-variant rounded text-[11px] font-medium text-on-surface-variant">Go</span>
+</td>
+<td class="py-3 px-4 font-code-block text-[11px] text-on-surface-variant">-</td>
+<td class="py-3 px-4 text-on-surface-variant">15 mins ago</td>
+<td class="py-3 px-4 text-right">
+<button class="px-3 py-1 bg-surface border border-outline-variant text-on-surface rounded hover:bg-surface-variant transition-colors font-medium">Details</button>
+</td>
+</tr>
+<!-- Row 3: Succeeded -->
+<tr class="border-b border-[#E2E8F0] table-row-hover transition-colors">
+<td class="py-3 px-4 font-code-block text-code-block text-on-surface">#job-8a7f9c0</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#10B981] bg-surface-container-lowest text-[#047857]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#059669]"></span>
+<span class="font-medium text-[11px]">Succeeded</span>
+</div>
+</td>
+<td class="py-3 px-4 text-secondary font-medium">gitlab.com/internal/payments-api</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">call_split</span>
+                                            release/v1.2
+                                        </div>
+</td>
+<td class="py-3 px-4">
+<span class="px-2 py-1 bg-surface-container border border-outline-variant rounded text-[11px] font-medium text-on-surface-variant">Python</span>
+</td>
+<td class="py-3 px-4 font-code-block text-[11px] text-on-surface-variant">v1.2.5</td>
+<td class="py-3 px-4 text-on-surface-variant">1 hour ago</td>
+<td class="py-3 px-4 text-right">
+<button class="px-3 py-1 bg-surface border border-outline-variant text-on-surface rounded hover:bg-surface-variant transition-colors font-medium">Details</button>
+</td>
+</tr>
+<!-- Row 4: Queued -->
+<tr class="border-b border-[#E2E8F0] table-row-hover transition-colors">
+<td class="py-3 px-4 font-code-block text-code-block text-on-surface">#job-8a7f9bf</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#94A3B8] bg-[#F1F5F9] text-[#475569]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#94A3B8]"></span>
+<span class="font-medium text-[11px]">Queued</span>
+</div>
+</td>
+<td class="py-3 px-4 text-secondary font-medium">github.com/acmecorp/worker-nodes</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">call_split</span>
+                                            main
+                                        </div>
+</td>
+<td class="py-3 px-4">
+<span class="px-2 py-1 bg-surface-container border border-outline-variant rounded text-[11px] font-medium text-on-surface-variant">Rust</span>
+</td>
+<td class="py-3 px-4 font-code-block text-[11px] text-on-surface-variant">-</td>
+<td class="py-3 px-4 text-on-surface-variant">2 hours ago</td>
+<td class="py-3 px-4 text-right">
+<button class="px-3 py-1 bg-surface border border-outline-variant text-on-surface rounded hover:bg-surface-variant transition-colors font-medium">Details</button>
+</td>
+</tr>
+<!-- Row 5: Succeeded -->
+<tr class="border-[#E2E8F0] table-row-hover transition-colors">
+<td class="py-3 px-4 font-code-block text-code-block text-on-surface">#job-8a7f9be</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#10B981] bg-surface-container-lowest text-[#047857]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#059669]"></span>
+<span class="font-medium text-[11px]">Succeeded</span>
+</div>
+</td>
+<td class="py-3 px-4 text-secondary font-medium">github.com/acmecorp/frontend-web</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">call_split</span>
+                                            main
+                                        </div>
+</td>
+<td class="py-3 px-4">
+<span class="px-2 py-1 bg-surface-container border border-outline-variant rounded text-[11px] font-medium text-on-surface-variant">Node.js</span>
+</td>
+<td class="py-3 px-4 font-code-block text-[11px] text-on-surface-variant">v2.3.9</td>
+<td class="py-3 px-4 text-on-surface-variant">5 hours ago</td>
+<td class="py-3 px-4 text-right">
+<button class="px-3 py-1 bg-surface border border-outline-variant text-on-surface rounded hover:bg-surface-variant transition-colors font-medium">Details</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="bg-[#F8FAFC] border-t border-[#E2E8F0] px-4 py-3 flex items-center justify-between">
+<div class="text-body-sm text-on-surface-variant">
+                            Showing <span class="font-medium text-on-surface">1</span> to <span class="font-medium text-on-surface">5</span> of <span class="font-medium text-on-surface">248</span> jobs
+                        </div>
+<div class="flex items-center gap-1">
+<button class="p-1 border border-outline-variant rounded bg-surface text-on-surface-variant hover:bg-surface-variant disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center border border-[#0F172A] rounded bg-[#0F172A] text-white text-body-sm font-medium">1</button>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded bg-surface text-on-surface hover:bg-surface-variant text-body-sm font-medium transition-colors">2</button>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded bg-surface text-on-surface hover:bg-surface-variant text-body-sm font-medium transition-colors">3</button>
+<span class="px-1 text-outline-variant">...</span>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded bg-surface text-on-surface hover:bg-surface-variant text-body-sm font-medium transition-colors">50</button>
+<button class="p-1 border border-outline-variant rounded bg-surface text-on-surface-variant hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

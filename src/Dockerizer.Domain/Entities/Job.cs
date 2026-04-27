@@ -8,8 +8,14 @@ public sealed class Job
     public JobStatus Status { get; set; } = JobStatus.Queued;
     public string? DetectedStack { get; set; }
     public string? GeneratedImageTag { get; set; }
+    public string? ContainerId { get; set; }
+    public string? ContainerName { get; set; }
+    public int? ContainerPort { get; set; }
+    public int? PublishedPort { get; set; }
+    public string? DeploymentUrl { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? StartedAtUtc { get; set; }
+    public DateTimeOffset? DeployedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
 }

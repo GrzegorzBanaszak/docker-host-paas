@@ -3,6 +3,7 @@ using Dockerizer.Application.Jobs;
 using Dockerizer.Domain;
 using Dockerizer.Domain.Entities;
 using Dockerizer.Infrastructure.Artifacts;
+using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,8 @@ namespace Dockerizer.Infrastructure.Jobs;
 public sealed class JobsService(
     DockerizerDbContext dbContext,
     IJobQueue jobQueue,
-    JobArtifactService artifactService) : IJobsService
+    JobArtifactService artifactService,
+    IDockerContainerRuntime dockerContainerRuntime) : IJobsService
 {
     public async Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken)
     {
@@ -41,6 +43,8 @@ public sealed class JobsService(
                 job.Status.ToString(),
                 job.DetectedStack,
                 job.GeneratedImageTag,
+                job.PublishedPort,
+                job.DeploymentUrl,
                 job.CreatedAtUtc))
             .ToListAsync(cancellationToken);
     }
@@ -67,13 +71,20 @@ public sealed class JobsService(
             throw new InvalidOperationException("Running jobs cannot be retried.");
         }
 
+        await dockerContainerRuntime.StopAndRemoveAsync(job, cancellationToken);
         await artifactService.CleanupWorkspaceAsync(job.Id, cancellationToken);
 
         job.Status = JobStatus.Queued;
         job.DetectedStack = null;
         job.GeneratedImageTag = null;
+        job.ContainerId = null;
+        job.ContainerName = null;
+        job.ContainerPort = null;
+        job.PublishedPort = null;
+        job.DeploymentUrl = null;
         job.ErrorMessage = null;
         job.StartedAtUtc = null;
+        job.DeployedAtUtc = null;
         job.CompletedAtUtc = null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -90,14 +101,22 @@ public sealed class JobsService(
             return null;
         }
 
-        if (job.Status is JobStatus.Succeeded or JobStatus.Failed or JobStatus.Canceled)
+        if (job.Status is JobStatus.Failed or JobStatus.Canceled)
         {
             return MapDetails(job);
         }
 
+        await dockerContainerRuntime.StopAndRemoveAsync(job, cancellationToken);
+
         job.Status = JobStatus.Canceled;
         job.CompletedAtUtc = DateTimeOffset.UtcNow;
         job.ErrorMessage ??= "Job was canceled.";
+        job.ContainerId = null;
+        job.ContainerName = null;
+        job.ContainerPort = null;
+        job.PublishedPort = null;
+        job.DeploymentUrl = null;
+        job.DeployedAtUtc = null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -121,8 +140,14 @@ public sealed class JobsService(
             job.Status.ToString(),
             job.DetectedStack,
             job.GeneratedImageTag,
+            job.ContainerId,
+            job.ContainerName,
+            job.ContainerPort,
+            job.PublishedPort,
+            job.DeploymentUrl,
             job.ErrorMessage,
             job.CreatedAtUtc,
             job.StartedAtUtc,
+            job.DeployedAtUtc,
             job.CompletedAtUtc);
 }

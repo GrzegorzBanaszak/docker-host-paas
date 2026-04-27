@@ -35,8 +35,26 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ContainerId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ContainerName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int?>("ContainerPort")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeployedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeploymentUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
 
                     b.Property<string>("DetectedStack")
                         .HasMaxLength(128)
@@ -49,6 +67,9 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                     b.Property<string>("GeneratedImageTag")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<int?>("PublishedPort")
+                        .HasColumnType("integer");
 
                     b.Property<string>("RepositoryUrl")
                         .IsRequired()

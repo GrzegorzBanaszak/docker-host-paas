@@ -7,7 +7,7 @@ namespace Dockerizer.Worker.Services;
 
 public sealed class DockerImageBuilder(
     IOptions<WorkerOptions> workerOptions,
-    ILogger<DockerImageBuilder> logger)
+    ILogger<DockerImageBuilder> logger) : IDockerImageBuilder
 {
     private readonly WorkerOptions _workerOptions = workerOptions.Value;
 

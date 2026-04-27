@@ -1,4 +1,5 @@
 using Dockerizer.Application.Abstractions;
+using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Configuration;
 using Dockerizer.Infrastructure.Jobs;
 using Dockerizer.Infrastructure.Artifacts;
@@ -35,10 +36,30 @@ public static class DependencyInjection
             CleanupWorkspaceAfterCompletion = bool.TryParse(configuration["Worker:CleanupWorkspaceAfterCompletion"], out var cleanupWorkspaceAfterCompletion)
                 && cleanupWorkspaceAfterCompletion,
         };
+        var dockerRuntimeOptions = new DockerRuntimeOptions
+        {
+            ContainerNamePrefix = configuration[$"{DockerRuntimeOptions.SectionName}:ContainerNamePrefix"] ?? "dockerizer-job",
+            BindingHost = configuration[$"{DockerRuntimeOptions.SectionName}:BindingHost"] ?? "127.0.0.1",
+            PublicBaseUrl = configuration[$"{DockerRuntimeOptions.SectionName}:PublicBaseUrl"] ?? "http://localhost",
+            HostPortRangeStart = int.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:HostPortRangeStart"], out var hostPortRangeStart)
+                ? hostPortRangeStart
+                : 45000,
+            HostPortRangeEnd = int.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:HostPortRangeEnd"], out var hostPortRangeEnd)
+                ? hostPortRangeEnd
+                : 45999,
+            StartupTimeoutSeconds = int.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:StartupTimeoutSeconds"], out var startupTimeoutSeconds)
+                ? startupTimeoutSeconds
+                : 60,
+            StartupPollIntervalMilliseconds = int.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:StartupPollIntervalMilliseconds"], out var startupPollIntervalMilliseconds)
+                ? startupPollIntervalMilliseconds
+                : 1000,
+        };
 
         services.AddSingleton(Options.Create(redisOptions));
         services.AddSingleton(artifactOptions);
+        services.AddSingleton(Options.Create(dockerRuntimeOptions));
         services.AddSingleton<JobArtifactService>();
+        services.AddSingleton<IDockerContainerRuntime, DockerContainerRuntime>();
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IJobQueue, RedisJobQueue>();
         services.AddScoped<IJobsService, JobsService>();
