@@ -33,8 +33,8 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
 
         try
         {
-            var branches = await jobsService.GetBranchesAsync(repositoryUrl, cancellationToken);
-            return Ok(branches);
+            var inspection = await jobsService.GetRepositoryInspectionAsync(repositoryUrl, cancellationToken);
+            return Ok(inspection);
         }
         catch (InvalidOperationException ex)
         {
@@ -77,12 +77,72 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
         return file is null ? NotFound() : Ok(file);
     }
 
+    [HttpPost("{id:guid}/container/start")]
+    public async Task<IActionResult> StartContainer(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var job = await jobsService.StartContainerAsync(id, cancellationToken);
+            return job is null ? NotFound() : Ok(job);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(nameof(id), ex.Message);
+            return ValidationProblem(ModelState);
+        }
+    }
+
+    [HttpPost("{id:guid}/container/restart")]
+    public async Task<IActionResult> RestartContainer(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var job = await jobsService.RestartContainerAsync(id, cancellationToken);
+            return job is null ? NotFound() : Ok(job);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(nameof(id), ex.Message);
+            return ValidationProblem(ModelState);
+        }
+    }
+
+    [HttpPost("{id:guid}/container/stop")]
+    public async Task<IActionResult> StopContainer(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var job = await jobsService.StopContainerAsync(id, cancellationToken);
+            return job is null ? NotFound() : Ok(job);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(nameof(id), ex.Message);
+            return ValidationProblem(ModelState);
+        }
+    }
+
     [HttpPost("{id:guid}/retry")]
     public async Task<IActionResult> Retry(Guid id, CancellationToken cancellationToken)
     {
         try
         {
             var job = await jobsService.RetryAsync(id, cancellationToken);
+            return job is null ? NotFound() : Ok(job);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(nameof(id), ex.Message);
+            return ValidationProblem(ModelState);
+        }
+    }
+
+    [HttpPost("{id:guid}/rebuild")]
+    public async Task<IActionResult> Rebuild(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var job = await jobsService.RebuildAsync(id, cancellationToken);
             return job is null ? NotFound() : Ok(job);
         }
         catch (InvalidOperationException ex)

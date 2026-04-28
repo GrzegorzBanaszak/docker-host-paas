@@ -1,7 +1,5 @@
 Plan do wykonania
 
-[ ] Logi z bildów powinny być przechowywane w bazie danych
-[ ] W bazie danych powinny być przechowywane id obrazów
-[ ] Jobs powinno zawierać pole "name" oraz w frontend zamiast w listach jobs zamiast Repository powinnien byc wyświetlany name
-[ ] Job Creation powinno być na oddzielnej stronie, powinno też umozliwiać wybranie gałęźi prbranych z repo.
-[ ] Folder .worker-data powinien być w Dockerizer.Worker i czyszczony po zakończeniu build a pliki jak Dokerfile i .dockerignore powinny być przechowywane w bazie danych.
+Ważne!! : przy edycji frontend zachowaj styl
+
+Obraz powinien być jako osobna encja by mozliwość przeglądania listy wszystkich obrazów , usuwania i szczegółów bildu. Do obrazu powinno byc przypisane Dockerfile i .dockerignore a nie do jobs. Jobs powinien wyświetlać liste obrazów przypiętych do niego i ten który jest aktualnie używany. Powinniśmy mieć mozliwość ręcznie przebudowania job i po przebudowaniu powinien na nowo sprawdzić github i nowy obraz docker.

@@ -1,4 +1,5 @@
 using Dockerizer.Application.Abstractions;
+using Dockerizer.Application.Images;
 using Dockerizer.Application.Jobs;
 using Dockerizer.Domain;
 using Dockerizer.Domain.Entities;
@@ -14,7 +15,7 @@ public sealed class JobsService(
     IJobQueue jobQueue,
     JobArtifactService artifactService,
     IDockerContainerRuntime dockerContainerRuntime,
-    IRepositoryBranchProvider repositoryBranchProvider) : IJobsService
+    RepositoryInspectionService repositoryInspectionService) : IJobsService
 {
     public async Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken)
     {
@@ -33,15 +34,21 @@ public sealed class JobsService(
         return MapDetails(job);
     }
 
-    public Task<IReadOnlyCollection<string>> GetBranchesAsync(string repositoryUrl, CancellationToken cancellationToken) =>
-        repositoryBranchProvider.GetBranchesAsync(repositoryUrl.Trim(), cancellationToken);
+    public Task<RepositoryInspectionDto> GetRepositoryInspectionAsync(string repositoryUrl, CancellationToken cancellationToken) =>
+        repositoryInspectionService.InspectAsync(repositoryUrl.Trim(), cancellationToken);
 
     public async Task<IReadOnlyCollection<JobListItemDto>> GetAllAsync(CancellationToken cancellationToken)
     {
-        return await dbContext.Jobs
+        var jobs = await dbContext.Jobs
             .AsNoTracking()
             .OrderByDescending(job => job.CreatedAtUtc)
-            .Select(job => new JobListItemDto(
+            .ToListAsync(cancellationToken);
+
+        var items = new List<JobListItemDto>(jobs.Count);
+        foreach (var job in jobs)
+        {
+            var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+            items.Add(new JobListItemDto(
                 job.Id,
                 job.Name,
                 job.RepositoryUrl,
@@ -49,20 +56,94 @@ public sealed class JobsService(
                 job.Status.ToString(),
                 job.DetectedStack,
                 job.GeneratedImageTag,
-                job.PublishedPort,
-                job.DeploymentUrl,
-                job.CreatedAtUtc))
-            .ToListAsync(cancellationToken);
+                containerStatus.Status,
+                containerStatus.PublishedPort ?? job.PublishedPort,
+                containerStatus.DeploymentUrl ?? job.DeploymentUrl,
+                job.CreatedAtUtc));
+        }
+
+        return items;
     }
 
     public async Task<JobDetailsDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await dbContext.Jobs
             .AsNoTracking()
+            .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        return job is null ? null : MapDetails(job);
+        if (job is null)
+        {
+            return null;
+        }
+
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
     }
+
+    public async Task<JobDetailsDto?> StartContainerAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var job = await dbContext.Jobs
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (job is null)
+        {
+            return null;
+        }
+
+        if (!job.ContainerPort.HasValue)
+        {
+            throw new InvalidOperationException("Container port is not available for this job.");
+        }
+
+        var deployment = await dockerContainerRuntime.StartAsync(job, job.ContainerPort.Value, cancellationToken);
+        ApplyDeployment(job, deployment);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
+    }
+
+    public async Task<JobDetailsDto?> RestartContainerAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var job = await dbContext.Jobs
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (job is null)
+        {
+            return null;
+        }
+
+        if (!job.ContainerPort.HasValue)
+        {
+            throw new InvalidOperationException("Container port is not available for this job.");
+        }
+
+        var deployment = await dockerContainerRuntime.RestartAsync(job, job.ContainerPort.Value, cancellationToken);
+        ApplyDeployment(job, deployment);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
+    }
+
+    public async Task<JobDetailsDto?> StopContainerAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var job = await dbContext.Jobs
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (job is null)
+        {
+            return null;
+        }
+
+        await dockerContainerRuntime.StopAsync(job, cancellationToken);
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
+    }
+
+    public Task<JobDetailsDto?> RebuildAsync(Guid id, CancellationToken cancellationToken) =>
+        RetryAsync(id, cancellationToken);
 
     public async Task<JobDetailsDto?> RetryAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -81,6 +162,7 @@ public sealed class JobsService(
         await artifactService.CleanupWorkspaceAsync(job.Id, cancellationToken);
 
         job.Status = JobStatus.Queued;
+        job.CurrentImageId = null;
         job.DetectedStack = null;
         job.GeneratedImageTag = null;
         job.ImageId = null;
@@ -97,7 +179,8 @@ public sealed class JobsService(
         await dbContext.SaveChangesAsync(cancellationToken);
         await jobQueue.EnqueueAsync(job.Id, cancellationToken);
 
-        return MapDetails(job);
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
     }
 
     public async Task<JobDetailsDto?> CancelAsync(Guid id, CancellationToken cancellationToken)
@@ -127,19 +210,69 @@ public sealed class JobsService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return MapDetails(job);
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
     }
 
     public Task<JobLogDto?> GetLogsAsync(Guid id, CancellationToken cancellationToken) =>
-        artifactService.GetLogsAsync(id, cancellationToken);
+        GetCurrentImageLogsAsync(id, cancellationToken);
 
     public Task<IReadOnlyCollection<JobFileDto>> GetFilesAsync(Guid id, CancellationToken cancellationToken) =>
-        artifactService.GetFilesAsync(id, cancellationToken);
+        GetCurrentImageFilesAsync(id, cancellationToken);
 
     public Task<JobFileContentDto?> GetFileContentAsync(Guid id, string fileId, CancellationToken cancellationToken) =>
-        artifactService.GetFileContentAsync(id, fileId, cancellationToken);
+        GetCurrentImageFileContentAsync(id, fileId, cancellationToken);
 
-    private static JobDetailsDto MapDetails(Job job) =>
+    private async Task<JobLogDto?> GetCurrentImageLogsAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        var currentImageId = await dbContext.Jobs
+            .AsNoTracking()
+            .Where(x => x.Id == jobId)
+            .Select(x => x.CurrentImageId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return currentImageId.HasValue
+            ? await artifactService.GetImageLogsAsync(currentImageId.Value, cancellationToken)
+            : await artifactService.GetLogsAsync(jobId, cancellationToken);
+    }
+
+    private async Task<IReadOnlyCollection<JobFileDto>> GetCurrentImageFilesAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        var currentImageId = await dbContext.Jobs
+            .AsNoTracking()
+            .Where(x => x.Id == jobId)
+            .Select(x => x.CurrentImageId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return currentImageId.HasValue
+            ? await artifactService.GetImageFilesAsync(currentImageId.Value, cancellationToken)
+            : await artifactService.GetFilesAsync(jobId, cancellationToken);
+    }
+
+    private async Task<JobFileContentDto?> GetCurrentImageFileContentAsync(Guid jobId, string fileId, CancellationToken cancellationToken)
+    {
+        var currentImageId = await dbContext.Jobs
+            .AsNoTracking()
+            .Where(x => x.Id == jobId)
+            .Select(x => x.CurrentImageId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return currentImageId.HasValue
+            ? await artifactService.GetImageFileContentAsync(currentImageId.Value, fileId, cancellationToken)
+            : await artifactService.GetFileContentAsync(jobId, fileId, cancellationToken);
+    }
+
+    private static void ApplyDeployment(Job job, ContainerDeploymentResult deployment)
+    {
+        job.ContainerId = deployment.ContainerId;
+        job.ContainerName = deployment.ContainerName;
+        job.ContainerPort = deployment.ContainerPort;
+        job.PublishedPort = deployment.PublishedPort;
+        job.DeploymentUrl = deployment.DeploymentUrl;
+        job.DeployedAtUtc = deployment.DeployedAtUtc;
+    }
+
+    private static JobDetailsDto MapDetails(Job job, ContainerRuntimeStatus? containerStatus = null) =>
         new(
             job.Id,
             job.Name,
@@ -151,12 +284,35 @@ public sealed class JobsService(
             job.ImageId,
             job.ContainerId,
             job.ContainerName,
+            containerStatus?.Status,
             job.ContainerPort,
             job.PublishedPort,
-            job.DeploymentUrl,
+            containerStatus?.DeploymentUrl ?? job.DeploymentUrl,
             job.ErrorMessage,
+            job.CurrentImageId,
+            job.Images
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .Select(image => MapImageSummary(image, job.CurrentImageId))
+                .FirstOrDefault(image => image.IsCurrent),
+            job.Images
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .Select(image => MapImageSummary(image, job.CurrentImageId))
+                .ToList(),
             job.CreatedAtUtc,
             job.StartedAtUtc,
             job.DeployedAtUtc,
             job.CompletedAtUtc);
+
+    private static JobImageSummaryDto MapImageSummary(JobImage image, Guid? currentImageId) =>
+        new(
+            image.Id,
+            image.Status.ToString(),
+            image.DetectedStack,
+            image.ImageTag,
+            image.ImageId,
+            image.SourceCommitSha,
+            image.ContainerPort,
+            image.CreatedAtUtc,
+            image.CompletedAtUtc,
+            currentImageId == image.Id);
 }

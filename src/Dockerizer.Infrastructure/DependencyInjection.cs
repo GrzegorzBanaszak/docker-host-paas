@@ -3,6 +3,7 @@ using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Configuration;
 using Dockerizer.Infrastructure.Jobs;
 using Dockerizer.Infrastructure.Artifacts;
+using Dockerizer.Infrastructure.Images;
 using Dockerizer.Infrastructure.Persistence;
 using Dockerizer.Infrastructure.Queue;
 using Microsoft.EntityFrameworkCore;
@@ -58,10 +59,13 @@ public static class DependencyInjection
         services.AddSingleton(Options.Create(dockerRuntimeOptions));
         services.AddScoped<JobArtifactService>();
         services.AddSingleton<IRepositoryBranchProvider, GitRepositoryBranchProvider>();
+        services.AddSingleton<RepositoryInspectionService>();
         services.AddSingleton<IDockerContainerRuntime, DockerContainerRuntime>();
+        services.AddSingleton<IDockerImageStore, DockerImageStore>();
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IJobQueue, RedisJobQueue>();
         services.AddScoped<IJobsService, JobsService>();
+        services.AddScoped<IImagesService, ImagesService>();
 
         return services;
     }

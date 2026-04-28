@@ -1,14 +1,17 @@
 using Dockerizer.Application.Abstractions;
+using Dockerizer.Application.Images;
 using Dockerizer.Application.Jobs;
 using Dockerizer.Domain;
 using Dockerizer.Domain.Entities;
 using Dockerizer.Infrastructure.Artifacts;
 using Dockerizer.Infrastructure.Containers;
+using Dockerizer.Infrastructure.Images;
 using Dockerizer.Infrastructure.Jobs;
 using Dockerizer.Infrastructure.Persistence;
 using Dockerizer.Worker.Configuration;
 using Dockerizer.Worker.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -43,14 +46,20 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.Equal("artisan-bakery-landing-page", job!.Name);
         Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
         Assert.Equal("nodejs", job.DetectedStack);
-        Assert.Equal("dockerizer:test-image", job.GeneratedImageTag);
-        Assert.Equal("sha256:test-image-id", job.ImageId);
+        Assert.NotNull(job.GeneratedImageTag);
+        Assert.NotNull(job.ImageId);
+        Assert.StartsWith("dockerizer:", job.GeneratedImageTag);
+        Assert.StartsWith("sha256:", job.ImageId);
         Assert.Equal(3000, job.ContainerPort);
         Assert.Equal(45000, job.PublishedPort);
         Assert.Equal("http://localhost:45000", job.DeploymentUrl);
         Assert.Equal("fake-container-id", job.ContainerId);
         Assert.Equal("dockerizer-job-" + created.Id.ToString("N"), job.ContainerName);
+        Assert.Equal("running", job.ContainerStatus);
         Assert.NotNull(job.DeployedAtUtc);
+        Assert.NotNull(job.CurrentImageId);
+        Assert.Single(job.Images);
+        Assert.True(Assert.Single(job.Images).IsCurrent);
 
         Assert.Contains(files, file => file.Name == "Dockerfile");
         Assert.Contains(files, file => file.Name == ".dockerignore");
@@ -83,6 +92,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
         Assert.Equal("static-html", job.DetectedStack);
         Assert.Equal(80, job.ContainerPort);
+        Assert.NotNull(job.CurrentImage);
         Assert.NotNull(dockerfile);
         Assert.Contains("nginx:1.27-alpine", dockerfile!.Content);
         Assert.Contains("/usr/share/nginx/html", dockerfile.Content);
@@ -96,7 +106,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         await using var context = CreateDbContext();
         var queue = new InMemoryJobQueue();
         var artifactService = CreateArtifactService(context);
-        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime, new FakeRepositoryBranchProvider());
+        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime, CreateRepositoryInspectionService());
 
         var job = new Job
         {
@@ -123,6 +133,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.Equal(nameof(JobStatus.Queued), retried!.Status);
         Assert.Null(retried.GeneratedImageTag);
         Assert.Null(retried.ImageId);
+        Assert.Null(retried.CurrentImageId);
         Assert.Null(retried.ContainerId);
         Assert.Null(retried.ContainerName);
         Assert.Null(retried.PublishedPort);
@@ -169,6 +180,72 @@ public sealed class JobPipelineEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task StartStopRestartContainerAsync_UpdatesLiveContainerStatus()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+
+        var job = new Job
+        {
+            Name = "artisan-bakery-landing-page",
+            RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
+            Status = JobStatus.Succeeded,
+            GeneratedImageTag = "dockerizer:test-image",
+            ImageId = "sha256:test-image-id",
+            ContainerId = "container-1",
+            ContainerName = "dockerizer-job-test",
+            ContainerPort = 3000,
+            PublishedPort = 45000,
+            DeploymentUrl = "http://localhost:45000",
+            DeployedAtUtc = DateTimeOffset.UtcNow,
+        };
+
+        context.Jobs.Add(job);
+        await context.SaveChangesAsync();
+
+        var stopped = await jobsService.StopContainerAsync(job.Id, CancellationToken.None);
+        var restarted = await jobsService.RestartContainerAsync(job.Id, CancellationToken.None);
+
+        Assert.NotNull(stopped);
+        Assert.Equal("exited", stopped!.ContainerStatus);
+        Assert.NotNull(restarted);
+        Assert.Equal("running", restarted!.ContainerStatus);
+        Assert.Single(fakeRuntime.StopRequests);
+        Assert.Single(fakeRuntime.RestartRequests);
+    }
+
+    [Fact]
+    public async Task RebuildAsync_CreatesNewImage_AndMarksLatestAsCurrent()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "node-basic");
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+        var imagesService = CreateImagesService(context);
+        var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
+
+        var created = await jobsService.CreateAsync(
+            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            CancellationToken.None);
+
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+        await jobsService.RebuildAsync(created.Id, CancellationToken.None);
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+
+        var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+        var images = await imagesService.GetAllAsync(CancellationToken.None);
+
+        Assert.NotNull(job);
+        Assert.Equal(2, job!.Images.Count);
+        Assert.NotNull(job.CurrentImageId);
+        Assert.Equal(2, images.Count(x => x.JobId == created.Id));
+        Assert.Equal(job.CurrentImageId, images.First(x => x.IsCurrent && x.JobId == created.Id).Id);
+    }
+
+    [Fact]
     public async Task CleanupWorkspaceAsync_Removes_ReadOnlyFiles()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -212,7 +289,26 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             new InMemoryJobQueue(),
             CreateArtifactService(context),
             fakeRuntime,
-            new FakeRepositoryBranchProvider());
+            CreateRepositoryInspectionService());
+    }
+
+    private ImagesService CreateImagesService(DockerizerDbContext context)
+    {
+        return new ImagesService(
+            context,
+            CreateArtifactService(context),
+            new FakeDockerImageStore());
+    }
+
+    private RepositoryInspectionService CreateRepositoryInspectionService()
+    {
+        return new RepositoryInspectionService(
+            new FakeRepositoryBranchProvider(),
+            new ArtifactOptions
+            {
+                WorkspaceRoot = Path.Combine(_tempRoot, "workspace"),
+            },
+            NullLogger<RepositoryInspectionService>.Instance);
     }
 
     private JobExecutionService CreateJobExecutionService(
@@ -296,11 +392,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
     private sealed class FakeDockerImageBuilder : IDockerImageBuilder
     {
-        public Task<DockerBuildResult> BuildAsync(Job job, string repositoryPath, CancellationToken cancellationToken)
+        public Task<DockerBuildResult> BuildAsync(Job job, JobImage image, string repositoryPath, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Assert.True(File.Exists(Path.Combine(repositoryPath, "Dockerfile")));
-            return Task.FromResult(new DockerBuildResult("dockerizer:test-image", "sha256:test-image-id"));
+            return Task.FromResult(new DockerBuildResult($"dockerizer:{image.Id:N}", $"sha256:{image.Id:N}"));
         }
     }
 
@@ -317,11 +413,15 @@ public sealed class JobPipelineEndToEndTests : IDisposable
     {
         public List<(Guid JobId, int ContainerPort)> RunRequests { get; } = [];
         public List<Guid> StopRequests { get; } = [];
+        public List<Guid> RestartRequests { get; } = [];
+        public List<Guid> StartRequests { get; } = [];
+        private readonly Dictionary<Guid, string> _statuses = [];
 
         public Task<ContainerDeploymentResult> RunAsync(Job job, int containerPort, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             RunRequests.Add((job.Id, containerPort));
+            _statuses[job.Id] = "running";
 
             return Task.FromResult(new ContainerDeploymentResult(
                 "fake-container-id",
@@ -332,10 +432,75 @@ public sealed class JobPipelineEndToEndTests : IDisposable
                 DateTimeOffset.UtcNow));
         }
 
+        public Task<ContainerDeploymentResult> StartAsync(Job job, int containerPort, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            StartRequests.Add(job.Id);
+            _statuses[job.Id] = "running";
+
+            return Task.FromResult(new ContainerDeploymentResult(
+                job.ContainerId ?? "fake-container-id",
+                job.ContainerName ?? $"dockerizer-job-{job.Id:N}",
+                containerPort,
+                job.PublishedPort ?? 45000,
+                job.DeploymentUrl ?? "http://localhost:45000",
+                DateTimeOffset.UtcNow));
+        }
+
+        public Task<ContainerDeploymentResult> RestartAsync(Job job, int containerPort, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RestartRequests.Add(job.Id);
+            _statuses[job.Id] = "running";
+
+            return Task.FromResult(new ContainerDeploymentResult(
+                job.ContainerId ?? "fake-container-id",
+                job.ContainerName ?? $"dockerizer-job-{job.Id:N}",
+                containerPort,
+                job.PublishedPort ?? 45000,
+                job.DeploymentUrl ?? "http://localhost:45000",
+                DateTimeOffset.UtcNow));
+        }
+
+        public Task StopAsync(Job job, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            StopRequests.Add(job.Id);
+            _statuses[job.Id] = "exited";
+            return Task.CompletedTask;
+        }
+
+        public Task<ContainerRuntimeStatus> GetStatusAsync(Job job, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var status = _statuses.TryGetValue(job.Id, out var currentStatus)
+                ? currentStatus
+                : string.IsNullOrWhiteSpace(job.ContainerId)
+                    ? "not_found"
+                    : "running";
+
+            return Task.FromResult(new ContainerRuntimeStatus(
+                status,
+                job.ContainerId,
+                job.ContainerName,
+                job.PublishedPort,
+                job.DeploymentUrl));
+        }
+
         public Task StopAndRemoveAsync(Job job, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             StopRequests.Add(job.Id);
+            _statuses[job.Id] = "not_found";
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeDockerImageStore : IDockerImageStore
+    {
+        public Task RemoveAsync(string? imageId, string? imageTag, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
     }

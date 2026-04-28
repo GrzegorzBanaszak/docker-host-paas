@@ -8,6 +8,7 @@ public sealed record JobListItemDto(
     string Status,
     string? DetectedStack,
     string? GeneratedImageTag,
+    string? ContainerStatus,
     int? PublishedPort,
     string? DeploymentUrl,
     DateTimeOffset CreatedAtUtc);

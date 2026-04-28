@@ -1,26 +1,16 @@
-import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
-import { FilePreviewPanel } from "../features/files/FilePreviewPanel";
-import { GeneratedFilesList } from "../features/files/GeneratedFilesList";
 import { JobActions } from "../features/jobs/JobActions";
 import { JobDetailsCard } from "../features/jobs/JobDetailsCard";
-import { useJob, useJobFileContent, useJobFiles, useJobLogs } from "../features/jobs/hooks";
+import { useJob } from "../features/jobs/hooks";
 import { JobStatusBadge } from "../features/jobs/JobStatusBadge";
-import { LogViewer } from "../features/logs/LogViewer";
 import { Icon } from "../components/Icon";
+import { JobImageList } from "../features/images/JobImageList";
+import type { ContainerStatus } from "../features/jobs/types";
 
 export function JobDetailsPage() {
   const { jobId = "" } = useParams();
-  const [selectedFileId, setSelectedFileId] = useState<string>();
-
   const jobQuery = useJob(jobId);
-  const logsQuery = useJobLogs(jobId);
-  const filesQuery = useJobFiles(jobId);
-
-  const defaultFileId = useMemo(() => filesQuery.data?.[0]?.id, [filesQuery.data]);
-  const activeFileId = selectedFileId ?? defaultFileId;
-  const fileContentQuery = useJobFileContent(jobId, activeFileId);
 
   if (!jobId) {
     return <EmptyState title="Missing job id" description="Open job details from the jobs list." />;
@@ -40,6 +30,7 @@ export function JobDetailsPage() {
             </Link>
             <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-ink">{jobQuery.data.name}</h1>
             <JobStatusBadge status={jobQuery.data.status} />
+            <ContainerStatusIndicator status={jobQuery.data.containerStatus} />
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs text-steel">
             <span className="flex items-center gap-1 font-mono text-[11px]">
@@ -65,6 +56,22 @@ export function JobDetailsPage() {
 
       <div className="min-w-0 space-y-4">
         <JobDetailsCard job={jobQuery.data} />
+      </div>
+
+      <div className="min-w-0">
+        <section className="rounded border border-outline bg-white p-4">
+          <h3 className="mb-4 border-b border-outline pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
+            Image History
+          </h3>
+          <JobImageList
+            images={jobQuery.data.images}
+            selectedImageId={jobQuery.data.currentImageId ?? undefined}
+            onSelect={() => undefined}
+          />
+        </section>
+      </div>
+
+      <div className="min-w-0">
         <section className="rounded border border-outline bg-white p-4">
           <h3 className="mb-4 border-b border-outline pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
             Execution Pipeline
@@ -80,35 +87,71 @@ export function JobDetailsPage() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
 
-      <div className="min-w-0">
-        {logsQuery.isError ? (
-          <EmptyState title="Logs unavailable" description={(logsQuery.error as Error).message || "Could not load job logs."} />
-        ) : (
-          <LogViewer content={logsQuery.data?.content} />
-        )}
-      </div>
+function ContainerStatusIndicator({ status }: { status?: ContainerStatus | null }) {
+  const normalized = status ?? "not_found";
+  const meta =
+    normalized === "running"
+      ? {
+          label: "Container running",
+          detail: "Container is up and responding.",
+          iconClass: "text-emerald-600",
+          dotClass: "bg-emerald-500"
+        }
+      : normalized === "restarting"
+        ? {
+            label: "Container restarting",
+            detail: "Docker is restarting the current container.",
+            iconClass: "text-sky-600",
+            dotClass: "bg-sky-500"
+          }
+        : normalized === "paused"
+          ? {
+              label: "Container paused",
+              detail: "Container exists but is currently paused.",
+              iconClass: "text-amber-600",
+              dotClass: "bg-amber-500"
+            }
+          : normalized === "created"
+            ? {
+                label: "Container created",
+                detail: "Container exists but has not started yet.",
+                iconClass: "text-slate-600",
+                dotClass: "bg-slate-400"
+              }
+            : normalized === "exited" || normalized === "dead"
+              ? {
+                  label: "Container stopped",
+                  detail: "Container is no longer running.",
+                  iconClass: "text-rose-600",
+                  dotClass: "bg-rose-500"
+                }
+              : {
+                  label: "Container not found",
+                  detail: "No active container is attached to this job.",
+                  iconClass: "text-steel",
+                  dotClass: "bg-slate-300"
+                };
 
-      <div className="min-w-0">
-        <div className="flex h-[600px] flex-col overflow-hidden rounded border border-outline bg-white">
-        <div className="border-b border-outline bg-slate-50 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
-          Generated Files
-        </div>
-        <div className="flex flex-1 flex-col">
-          <GeneratedFilesList
-            files={filesQuery.data ?? []}
-            selectedFileId={activeFileId}
-            onSelect={setSelectedFileId}
-          />
-          <div className="flex-1">
-            {fileContentQuery.isError ? (
-              <EmptyState title="File unavailable" description={(fileContentQuery.error as Error).message || "Could not load the selected artifact."} />
-            ) : (
-              <FilePreviewPanel name={fileContentQuery.data?.name} content={fileContentQuery.data?.content} />
-            )}
-          </div>
-        </div>
-        </div>
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-outline bg-white transition hover:border-slate-300 hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:outline-none"
+        aria-label={meta.label}
+        title={`${meta.label}. ${meta.detail}`}
+      >
+        <span className="relative flex h-4 w-4 items-center justify-center">
+          <Icon name="deployed_code" className={`text-[16px] ${meta.iconClass}`} />
+          <span className={`absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-white ${meta.dotClass}`} />
+        </span>
+      </button>
+      <div className="pointer-events-none absolute left-1/2 top-[calc(100%+0.5rem)] z-10 w-52 -translate-x-1/2 rounded border border-outline bg-white px-3 py-2 opacity-0 shadow-sm transition group-hover:opacity-100 group-focus-within:opacity-100">
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink">{meta.label}</p>
+        <p className="mt-1 text-[11px] leading-4 text-steel">{meta.detail}</p>
       </div>
     </div>
   );
@@ -156,7 +199,7 @@ function buildTimeline(job: {
     },
     {
       label: "Deployment Ready",
-      caption: isFinished ? (job.deploymentUrl ?? "Ready") : isFailed ? "Failed" : isCanceled ? "Canceled" : "Pending",
+      caption: isFinished ? job.deploymentUrl ?? "Ready" : isFailed ? "Failed" : isCanceled ? "Canceled" : "Pending",
       dotClass: isFinished ? doneClass : isFailed ? failedClass : isCanceled ? canceledClass : pendingClass,
       isActive: !!job.completedAtUtc
     }

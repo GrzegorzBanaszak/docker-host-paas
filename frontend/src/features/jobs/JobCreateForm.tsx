@@ -4,12 +4,14 @@ import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { useCreateJob, useRepositoryBranches } from "./hooks";
 import { createJobSchema, type CreateJobSchema } from "./schema";
+import { StackBadge } from "../../components/StackBadge";
 
 export function JobCreateForm() {
   const navigate = useNavigate();
   const createJob = useCreateJob();
   const branchLookup = useRepositoryBranches();
   const [branches, setBranches] = useState<string[]>([]);
+  const [detectedStack, setDetectedStack] = useState<string | null>(null);
   const form = useForm<CreateJobSchema>({
     resolver: zodResolver(createJobSchema),
     defaultValues: {
@@ -37,13 +39,14 @@ export function JobCreateForm() {
     }
 
     try {
-      const loadedBranches = await branchLookup.mutateAsync(repositoryUrl);
+      const inspection = await branchLookup.mutateAsync(repositoryUrl);
       form.clearErrors("repositoryUrl");
-      setBranches(loadedBranches);
+      setBranches(inspection.branches);
+      setDetectedStack(inspection.detectedStack ?? null);
 
       const currentBranch = form.getValues("branch")?.trim();
-      if (!currentBranch || !loadedBranches.includes(currentBranch)) {
-        form.setValue("branch", loadedBranches[0] ?? "", { shouldValidate: true });
+      if (!currentBranch || !inspection.branches.includes(currentBranch)) {
+        form.setValue("branch", inspection.branches[0] ?? "", { shouldValidate: true });
       }
     } catch (error) {
       form.setError("repositoryUrl", {
@@ -51,6 +54,7 @@ export function JobCreateForm() {
         message: (error as Error).message || "Could not load repository branches."
       });
       setBranches([]);
+      setDetectedStack(null);
     }
   }
 
@@ -100,6 +104,10 @@ export function JobCreateForm() {
             placeholder="https://github.com/owner/repo"
             className="h-10 w-full rounded border border-outline bg-surface px-3 text-sm text-ink outline-none transition focus:border-sky focus:ring-1 focus:ring-sky"
             {...form.register("repositoryUrl", {
+              onChange: () => {
+                setBranches([]);
+                setDetectedStack(null);
+              },
               onBlur: handleRepositoryBlur
             })}
           />
@@ -118,6 +126,12 @@ export function JobCreateForm() {
         ) : (
           <p className="text-xs text-steel">Branch lookup currently uses repository refs available via git.</p>
         )}
+        {detectedStack ? (
+          <div className="pt-1">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">Detected Stack</p>
+            <StackBadge stack={detectedStack} />
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-1">

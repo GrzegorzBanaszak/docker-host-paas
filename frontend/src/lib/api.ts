@@ -1,10 +1,13 @@
 import type {
   CreateJobInput,
+  ImageDetails,
+  ImageListItem,
   JobDetails,
   JobFile,
   JobFileContent,
   JobListItem,
-  JobLog
+  JobLog,
+  RepositoryInspection
 } from "../features/jobs/types";
 
 type RequestOptions = RequestInit & {
@@ -25,6 +28,10 @@ async function request<T>(input: RequestInfo, init?: RequestOptions): Promise<T>
 
   if (!response.ok) {
     throw new Error(await getErrorMessage(response));
+  }
+
+  if (response.status === 204) {
+    return null as T;
   }
 
   return response.json() as Promise<T>;
@@ -57,16 +64,33 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
-  getRepositoryBranches: (repositoryUrl: string) =>
-    request<string[]>(`/api/jobs/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}`),
+  getRepositoryInspection: (repositoryUrl: string) =>
+    request<RepositoryInspection>(`/api/jobs/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}`),
   getJobs: () => request<JobListItem[]>("/api/jobs"),
   getJob: (jobId: string) => request<JobDetails>(`/api/jobs/${jobId}`),
   getLogs: (jobId: string) => request<JobLog | null>(`/api/jobs/${jobId}/logs`, { allowNotFound: true }),
   getFiles: (jobId: string) => request<JobFile[]>(`/api/jobs/${jobId}/files`),
   getFileContent: (jobId: string, fileId: string) =>
     request<JobFileContent | null>(`/api/jobs/${jobId}/files/${fileId}`, { allowNotFound: true }),
+  getImages: () => request<ImageListItem[]>("/api/images"),
+  getImage: (imageId: string) => request<ImageDetails>(`/api/images/${imageId}`),
+  getImageLogs: (imageId: string) => request<JobLog | null>(`/api/images/${imageId}/logs`, { allowNotFound: true }),
+  getImageFiles: (imageId: string) => request<JobFile[]>(`/api/images/${imageId}/files`),
+  getImageFileContent: (imageId: string, fileId: string) =>
+    request<JobFileContent | null>(`/api/images/${imageId}/files/${fileId}`, { allowNotFound: true }),
+  rebuildJob: (jobId: string) =>
+    request<JobDetails>(`/api/jobs/${jobId}/rebuild`, { method: "POST" }),
+  startContainer: (jobId: string) =>
+    request<JobDetails>(`/api/jobs/${jobId}/container/start`, { method: "POST" }),
+  restartContainer: (jobId: string) =>
+    request<JobDetails>(`/api/jobs/${jobId}/container/restart`, { method: "POST" }),
+  stopContainer: (jobId: string) =>
+    request<JobDetails>(`/api/jobs/${jobId}/container/stop`, { method: "POST" }),
   retryJob: (jobId: string) =>
     request<JobDetails>(`/api/jobs/${jobId}/retry`, { method: "POST" }),
   cancelJob: (jobId: string) =>
-    request<JobDetails>(`/api/jobs/${jobId}/cancel`, { method: "POST" })
+    request<JobDetails>(`/api/jobs/${jobId}/cancel`, { method: "POST" }),
+  deleteImage: async (imageId: string) => {
+    await request<null>(`/api/images/${imageId}`, { method: "DELETE" });
+  }
 };

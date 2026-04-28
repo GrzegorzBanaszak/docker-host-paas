@@ -2,6 +2,9 @@ import { Link } from "react-router-dom";
 import { JobStatusBadge } from "./JobStatusBadge";
 import type { JobListItem } from "./types";
 import { EmptyState } from "../../components/EmptyState";
+import { GitHubRepoLink } from "../../components/GitHubRepoLink";
+import { StackBadge } from "../../components/StackBadge";
+import type { ContainerStatus } from "./types";
 
 export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "dashboard" | "full" }) {
   if (jobs.length === 0) {
@@ -18,7 +21,7 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
             <th className="px-4 py-3">Branch</th>
             <th className="px-4 py-3">Stack</th>
             <th className="px-4 py-3">Status</th>
-            {mode === "full" ? <th className="px-4 py-3">Image Tag</th> : null}
+            {mode === "full" ? <th className="px-4 py-3">Container</th> : null}
             {mode === "full" ? <th className="px-4 py-3">Deployment</th> : null}
             <th className="px-4 py-3">Created</th>
             <th className="px-4 py-3 text-right">Action</th>
@@ -31,26 +34,24 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
                 <td className="px-4 py-3 font-mono text-[12px] text-ink">#{job.id.slice(0, 8)}</td>
               ) : null}
               <td className="px-4 py-3">
-                <div className="space-y-1">
-                  <div className="font-medium text-secondary">{job.name}</div>
-                  <div className="truncate text-[12px] text-steel" title={job.repositoryUrl}>
-                    {job.repositoryUrl}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 font-medium text-secondary">{job.name}</div>
+                  <GitHubRepoLink href={job.repositoryUrl} />
                 </div>
               </td>
               <td className="px-4 py-3">
                 <span className="font-mono text-[12px] text-steel">{job.branch || "main"}</span>
               </td>
               <td className="px-4 py-3">
-                <span className="rounded border border-outline bg-surface-low px-2 py-1 text-[11px] font-medium text-steel">
-                  {job.detectedStack || "pending"}
-                </span>
+                <StackBadge stack={job.detectedStack} compact />
               </td>
               <td className="px-4 py-3">
                 <JobStatusBadge status={job.status} />
               </td>
               {mode === "full" ? (
-                <td className="px-4 py-3 font-mono text-[11px] text-steel">{job.generatedImageTag || "-"}</td>
+                <td className="px-4 py-3">
+                  <ContainerStatusChip status={job.containerStatus} />
+                </td>
               ) : null}
               {mode === "full" ? (
                 <td className="px-4 py-3">
@@ -99,6 +100,29 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ContainerStatusChip({ status }: { status?: ContainerStatus | null }) {
+  const normalized = status ?? "not_found";
+  const className =
+    normalized === "running"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : normalized === "restarting"
+        ? "border-sky-200 bg-sky-50 text-sky-700"
+        : normalized === "paused"
+          ? "border-amber-200 bg-amber-50 text-amber-700"
+          : normalized === "created"
+            ? "border-slate-200 bg-slate-50 text-slate-700"
+            : normalized === "exited" || normalized === "dead"
+              ? "border-rose-200 bg-rose-50 text-rose-700"
+              : "border-outline bg-surface-low text-steel";
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${className}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+      {normalized.replace("_", " ")}
+    </span>
   );
 }
 

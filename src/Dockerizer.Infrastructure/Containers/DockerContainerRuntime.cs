@@ -22,40 +22,124 @@ public sealed class DockerContainerRuntime(
         var containerName = BuildContainerName(job.Id);
         await StopAndRemoveByNameAsync(containerName, CancellationToken.None);
 
-        var publishedPort = await FindAvailableHostPortAsync(cancellationToken);
         var containerId = await StartContainerAsync(
             containerName,
-            publishedPort,
             containerPort,
             job.GeneratedImageTag,
             cancellationToken);
 
         try
         {
+            var publishedPort = await ResolvePublishedPortAsync(containerName, containerPort, cancellationToken);
             await WaitUntilReachableAsync(containerId, publishedPort, cancellationToken);
+            return BuildDeploymentResult(containerId, containerName, containerPort, publishedPort);
         }
         catch
         {
             await StopAndRemoveByNameAsync(containerName, CancellationToken.None);
             throw;
         }
+    }
 
-        var deployedAtUtc = DateTimeOffset.UtcNow;
-        var deploymentUrl = BuildDeploymentUrl(publishedPort);
+    public async Task<ContainerDeploymentResult> StartAsync(Job job, int containerPort, CancellationToken cancellationToken)
+    {
+        EnsureContainerCanBeManaged(job, containerPort);
 
-        logger.LogInformation(
-            "Container {ContainerName} ({ContainerId}) is reachable at {DeploymentUrl}.",
-            containerName,
-            containerId,
-            deploymentUrl);
+        var inspection = await InspectExistingContainerAsync(job, containerPort, cancellationToken);
+        if (inspection is null)
+        {
+            return await RunAsync(job, containerPort, cancellationToken);
+        }
 
-        return new ContainerDeploymentResult(
-            containerId,
-            containerName,
-            containerPort,
-            publishedPort,
-            deploymentUrl,
-            deployedAtUtc);
+        if (inspection.Status == "running")
+        {
+            return BuildDeploymentResult(
+                inspection.ContainerId!,
+                inspection.ContainerName!,
+                containerPort,
+                inspection.PublishedPort!.Value);
+        }
+
+        var result = await RunDockerCommandAsync($"start {inspection.ContainerId}", cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"docker start failed with exit code {result.ExitCode}: {result.StandardError}");
+        }
+
+        var publishedPort = inspection.PublishedPort ?? await ResolvePublishedPortAsync(inspection.ContainerName!, containerPort, cancellationToken);
+        await WaitUntilReachableAsync(inspection.ContainerId!, publishedPort, cancellationToken);
+        return BuildDeploymentResult(inspection.ContainerId!, inspection.ContainerName!, containerPort, publishedPort);
+    }
+
+    public async Task<ContainerDeploymentResult> RestartAsync(Job job, int containerPort, CancellationToken cancellationToken)
+    {
+        EnsureContainerCanBeManaged(job, containerPort);
+
+        var inspection = await InspectExistingContainerAsync(job, containerPort, cancellationToken);
+        if (inspection is null)
+        {
+            return await RunAsync(job, containerPort, cancellationToken);
+        }
+
+        var result = await RunDockerCommandAsync($"restart {inspection.ContainerId}", cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"docker restart failed with exit code {result.ExitCode}: {result.StandardError}");
+        }
+
+        var publishedPort = inspection.PublishedPort ?? await ResolvePublishedPortAsync(inspection.ContainerName!, containerPort, cancellationToken);
+        await WaitUntilReachableAsync(inspection.ContainerId!, publishedPort, cancellationToken);
+        return BuildDeploymentResult(inspection.ContainerId!, inspection.ContainerName!, containerPort, publishedPort);
+    }
+
+    public async Task StopAsync(Job job, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var inspection = await InspectExistingContainerAsync(job, job.ContainerPort, cancellationToken);
+        if (inspection is null || inspection.Status is "exited" or "dead")
+        {
+            return;
+        }
+
+        var result = await RunDockerCommandAsync($"stop {inspection.ContainerId}", cancellationToken);
+        if (result.ExitCode == 0)
+        {
+            return;
+        }
+
+        var error = (result.StandardError ?? string.Empty).Trim();
+        if (error.Contains("No such container", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"docker stop failed with exit code {result.ExitCode}: {error}");
+    }
+
+    public async Task<ContainerRuntimeStatus> GetStatusAsync(Job job, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var inspection = await InspectExistingContainerAsync(job, job.ContainerPort, cancellationToken);
+        if (inspection is null)
+        {
+            return new ContainerRuntimeStatus(
+                "not_found",
+                job.ContainerId,
+                job.ContainerName,
+                job.PublishedPort,
+                job.PublishedPort.HasValue ? BuildDeploymentUrl(job.PublishedPort.Value) : job.DeploymentUrl);
+        }
+
+        return new ContainerRuntimeStatus(
+            inspection.Status,
+            inspection.ContainerId,
+            inspection.ContainerName,
+            inspection.PublishedPort,
+            inspection.PublishedPort.HasValue ? BuildDeploymentUrl(inspection.PublishedPort.Value) : null);
     }
 
     public async Task StopAndRemoveAsync(Job job, CancellationToken cancellationToken)
@@ -76,13 +160,12 @@ public sealed class DockerContainerRuntime(
 
     private async Task<string> StartContainerAsync(
         string containerName,
-        int publishedPort,
         int containerPort,
         string imageTag,
         CancellationToken cancellationToken)
     {
         var arguments =
-            $"run -d --name {containerName} -p {_options.BindingHost}:{publishedPort}:{containerPort} {imageTag}";
+            $"run -d --name {containerName} -p {_options.BindingHost}::{containerPort} {imageTag}";
 
         var result = await RunDockerCommandAsync(arguments, cancellationToken);
         if (result.ExitCode != 0)
@@ -175,43 +258,109 @@ public sealed class DockerContainerRuntime(
         return output.Length <= 1500 ? output : output[..1500];
     }
 
-    private async Task<int> FindAvailableHostPortAsync(CancellationToken cancellationToken)
+    private async Task<ContainerInspection?> InspectExistingContainerAsync(Job job, int? containerPort, CancellationToken cancellationToken)
     {
-        for (var port = _options.HostPortRangeStart; port <= _options.HostPortRangeEnd; port++)
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var target = !string.IsNullOrWhiteSpace(job.ContainerId)
+            ? job.ContainerId
+            : !string.IsNullOrWhiteSpace(job.ContainerName)
+                ? job.ContainerName
+                : BuildContainerName(job.Id);
+
+        var inspectResult = await RunDockerCommandAsync(
+            $"inspect -f \"{{{{.Id}}}}|{{{{.Name}}}}|{{{{.State.Status}}}}\" {target}",
+            cancellationToken);
+
+        if (inspectResult.ExitCode != 0)
+        {
+            var error = (inspectResult.StandardError ?? string.Empty).Trim();
+            if (error.Contains("No such object", StringComparison.OrdinalIgnoreCase) ||
+                error.Contains("No such container", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            throw new InvalidOperationException(
+                $"docker inspect failed with exit code {inspectResult.ExitCode}: {error}");
+        }
+
+        var parts = inspectResult.StandardOutput.Trim().Split('|', 3, StringSplitOptions.TrimEntries);
+        if (parts.Length != 3)
+        {
+            throw new InvalidOperationException("docker inspect returned an unexpected container metadata format.");
+        }
+
+        int? publishedPort = null;
+        if (containerPort.HasValue)
+        {
+            publishedPort = await TryResolvePublishedPortAsync(parts[1], containerPort.Value, cancellationToken);
+        }
+
+        return new ContainerInspection(
+            parts[0],
+            parts[1].TrimStart('/'),
+            parts[2].ToLowerInvariant(),
+            publishedPort);
+    }
+
+    private async Task<int> ResolvePublishedPortAsync(string containerName, int containerPort, CancellationToken cancellationToken)
+    {
+        var timeout = TimeSpan.FromSeconds(_options.StartupTimeoutSeconds);
+        var pollInterval = TimeSpan.FromMilliseconds(_options.StartupPollIntervalMilliseconds);
+        var deadlineUtc = DateTimeOffset.UtcNow.Add(timeout);
+
+        while (DateTimeOffset.UtcNow < deadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!await IsPortFreeAsync(port, cancellationToken))
+            var publishedPort = await TryResolvePublishedPortAsync(containerName, containerPort, cancellationToken);
+            if (publishedPort.HasValue)
             {
-                continue;
+                return publishedPort.Value;
             }
 
-            return port;
+            await Task.Delay(pollInterval, cancellationToken);
         }
 
         throw new InvalidOperationException(
-            $"Could not find a free host port in range {_options.HostPortRangeStart}-{_options.HostPortRangeEnd}.");
+            $"Could not determine published port for container {containerName} and internal port {containerPort}.");
     }
 
-    private async Task<bool> IsPortFreeAsync(int port, CancellationToken cancellationToken)
+    private async Task<int?> TryResolvePublishedPortAsync(string containerName, int containerPort, CancellationToken cancellationToken)
     {
-        using var listener = new TcpListener(System.Net.IPAddress.Parse(_options.BindingHost), port);
+        var result = await RunDockerCommandAsync($"port {containerName} {containerPort}/tcp", cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            var error = (result.StandardError ?? string.Empty).Trim();
+            if (error.Contains("No public port", StringComparison.OrdinalIgnoreCase) ||
+                error.Contains("No such container", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
 
-        try
-        {
-            listener.Start();
-            listener.Stop();
-            return true;
+            throw new InvalidOperationException(
+                $"docker port failed with exit code {result.ExitCode}: {error}");
         }
-        catch (SocketException)
+
+        var line = result.StandardOutput
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(line))
         {
-            return false;
+            return null;
         }
-        finally
+
+        var lastColonIndex = line.LastIndexOf(':');
+        if (lastColonIndex < 0)
         {
-            await Task.Yield();
-            cancellationToken.ThrowIfCancellationRequested();
+            return null;
         }
+
+        return int.TryParse(line[(lastColonIndex + 1)..].Trim(), out var port)
+            ? port
+            : null;
     }
 
     private async Task StopAndRemoveByNameAsync(string containerName, CancellationToken cancellationToken)
@@ -246,6 +395,19 @@ public sealed class DockerContainerRuntime(
             error);
     }
 
+    private void EnsureContainerCanBeManaged(Job job, int containerPort)
+    {
+        if (string.IsNullOrWhiteSpace(job.GeneratedImageTag))
+        {
+            throw new InvalidOperationException("Docker image tag is required before container management actions.");
+        }
+
+        if (containerPort <= 0)
+        {
+            throw new InvalidOperationException("Container port is required before container management actions.");
+        }
+    }
+
     private string BuildContainerName(Guid jobId)
     {
         var prefix = string.IsNullOrWhiteSpace(_options.ContainerNamePrefix)
@@ -269,6 +431,19 @@ public sealed class DockerContainerRuntime(
 
         return builder.Uri.ToString().TrimEnd('/');
     }
+
+    private ContainerDeploymentResult BuildDeploymentResult(
+        string containerId,
+        string containerName,
+        int containerPort,
+        int publishedPort) =>
+        new(
+            containerId,
+            containerName,
+            containerPort,
+            publishedPort,
+            BuildDeploymentUrl(publishedPort),
+            DateTimeOffset.UtcNow);
 
     private static async Task<DockerCommandResult> RunDockerCommandAsync(string arguments, CancellationToken cancellationToken)
     {
@@ -300,4 +475,10 @@ public sealed class DockerContainerRuntime(
     }
 
     private sealed record DockerCommandResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private sealed record ContainerInspection(
+        string ContainerId,
+        string ContainerName,
+        string Status,
+        int? PublishedPort);
 }

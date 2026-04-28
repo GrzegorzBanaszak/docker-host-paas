@@ -45,6 +45,49 @@ export function useJobFileContent(jobId: string, fileId?: string) {
   });
 }
 
+export function useImages() {
+  return useQuery({
+    queryKey: ["images"],
+    queryFn: api.getImages,
+    refetchInterval: 5000
+  });
+}
+
+export function useImage(imageId: string) {
+  return useQuery({
+    queryKey: ["image", imageId],
+    queryFn: () => api.getImage(imageId),
+    enabled: Boolean(imageId),
+    refetchInterval: 5000
+  });
+}
+
+export function useImageLogs(imageId: string) {
+  return useQuery({
+    queryKey: ["image", imageId, "logs"],
+    queryFn: () => api.getImageLogs(imageId),
+    enabled: Boolean(imageId),
+    refetchInterval: 5000
+  });
+}
+
+export function useImageFiles(imageId: string) {
+  return useQuery({
+    queryKey: ["image", imageId, "files"],
+    queryFn: () => api.getImageFiles(imageId),
+    enabled: Boolean(imageId),
+    refetchInterval: 5000
+  });
+}
+
+export function useImageFileContent(imageId: string, fileId?: string) {
+  return useQuery({
+    queryKey: ["image", imageId, "files", fileId],
+    queryFn: () => api.getImageFileContent(imageId, fileId!),
+    enabled: Boolean(imageId && fileId)
+  });
+}
+
 export function useCreateJob() {
   const queryClient = useQueryClient();
 
@@ -58,7 +101,7 @@ export function useCreateJob() {
 
 export function useRepositoryBranches() {
   return useMutation({
-    mutationFn: (repositoryUrl: string) => api.getRepositoryBranches(repositoryUrl)
+    mutationFn: (repositoryUrl: string) => api.getRepositoryInspection(repositoryUrl)
   });
 }
 
@@ -74,6 +117,55 @@ export function useRetryJob(jobId: string) {
   });
 }
 
+export function useRebuildJob(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.rebuildJob(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["images"] });
+    }
+  });
+}
+
+export function useStartContainer(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.startContainer(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+    }
+  });
+}
+
+export function useRestartContainer(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.restartContainer(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+    }
+  });
+}
+
+export function useStopContainer(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.stopContainer(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+    }
+  });
+}
+
 export function useCancelJob(jobId: string) {
   const queryClient = useQueryClient();
 
@@ -82,6 +174,21 @@ export function useCancelJob(jobId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["images"] });
+    }
+  });
+}
+
+export function useDeleteImage(imageId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.deleteImage(imageId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["images"] });
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job"] });
+      void queryClient.invalidateQueries({ queryKey: ["image", imageId] });
     }
   });
 }

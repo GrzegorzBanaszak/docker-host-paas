@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Dockerizer.Application.Abstractions;
 using Dockerizer.Domain;
+using Dockerizer.Domain.Entities;
 using Dockerizer.Infrastructure.Artifacts;
 using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Persistence;
@@ -43,10 +45,12 @@ public sealed class JobExecutionService(
             return;
         }
 
+        var now = DateTimeOffset.UtcNow;
         job.Status = JobStatus.Running;
-        job.StartedAtUtc = DateTimeOffset.UtcNow;
+        job.StartedAtUtc = now;
         job.CompletedAtUtc = null;
         job.ErrorMessage = null;
+        job.DetectedStack = null;
         job.GeneratedImageTag = null;
         job.ImageId = null;
         job.ContainerId = null;
@@ -55,7 +59,17 @@ public sealed class JobExecutionService(
         job.PublishedPort = null;
         job.DeploymentUrl = null;
         job.DeployedAtUtc = null;
+        job.CurrentImageId = null;
 
+        var image = new JobImage
+        {
+            JobId = job.Id,
+            Status = JobStatus.Running,
+            CreatedAtUtc = now,
+            StartedAtUtc = now,
+        };
+
+        dbContext.JobImages.Add(image);
         await dbContext.SaveChangesAsync(cancellationToken);
         await jobArtifactService.ResetExecutionArtifactsAsync(job.Id, cancellationToken);
 
@@ -63,25 +77,37 @@ public sealed class JobExecutionService(
         {
             var workspacePath = PrepareWorkspace(job.Id);
             var repositoryPath = Path.Combine(workspacePath, "repository");
-            await jobLogWriter.WriteLineAsync(job.Id, $"Starting job for repository {job.RepositoryUrl}.", cancellationToken);
+            await jobLogWriter.WriteLineAsync(image.Id, $"Starting job for repository {job.RepositoryUrl}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
             await gitRepositoryCloner.CloneAsync(job, repositoryPath, cancellationToken);
-            await jobLogWriter.WriteLineAsync(job.Id, "Repository cloned successfully.", cancellationToken);
+            await jobLogWriter.WriteLineAsync(image.Id, "Repository cloned successfully.", cancellationToken);
+
+            image.SourceCommitSha = await TryResolveCommitShaAsync(repositoryPath, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(image.SourceCommitSha))
+            {
+                await jobLogWriter.WriteLineAsync(image.Id, $"Resolved commit: {image.SourceCommitSha}.", cancellationToken);
+            }
+
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            job.DetectedStack = await repositoryStackDetector.DetectAsync(repositoryPath, cancellationToken);
-            await jobLogWriter.WriteLineAsync(job.Id, $"Detected stack: {job.DetectedStack}.", cancellationToken);
+            image.DetectedStack = await repositoryStackDetector.DetectAsync(repositoryPath, cancellationToken);
+            job.DetectedStack = image.DetectedStack;
+            await jobLogWriter.WriteLineAsync(image.Id, $"Detected stack: {image.DetectedStack}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            await containerizationTemplateGenerator.GenerateAsync(repositoryPath, job.DetectedStack, cancellationToken);
-            await jobArtifactService.CaptureGeneratedFilesAsync(job.Id, repositoryPath, cancellationToken);
-            await jobLogWriter.WriteLineAsync(job.Id, "Containerization files generated and stored.", cancellationToken);
+            await containerizationTemplateGenerator.GenerateAsync(repositoryPath, image.DetectedStack, cancellationToken);
+            await jobArtifactService.CaptureImageGeneratedFilesAsync(image.Id, repositoryPath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(image.Id, "Containerization files generated and stored.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            job.ContainerPort = containerPortResolver.Resolve(repositoryPath, job.DetectedStack);
-            await jobLogWriter.WriteLineAsync(job.Id, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
+            image.ContainerPort = containerPortResolver.Resolve(repositoryPath, image.DetectedStack);
+            job.ContainerPort = image.ContainerPort;
+            await jobLogWriter.WriteLineAsync(image.Id, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            var buildResult = await dockerImageBuilder.BuildAsync(job, repositoryPath, cancellationToken);
+            var buildResult = await dockerImageBuilder.BuildAsync(job, image, repositoryPath, cancellationToken);
+            image.ImageTag = buildResult.ImageTag;
+            image.ImageId = buildResult.ImageId;
+            image.BuiltAtUtc = DateTimeOffset.UtcNow;
             job.GeneratedImageTag = buildResult.ImageTag;
             job.ImageId = buildResult.ImageId;
-            await jobLogWriter.WriteLineAsync(job.Id, $"Docker image built: {job.GeneratedImageTag} ({job.ImageId}).", cancellationToken);
+            await jobLogWriter.WriteLineAsync(image.Id, $"Docker image built: {job.GeneratedImageTag} ({job.ImageId}).", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
             var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort.Value, cancellationToken);
             job.ContainerId = deployment.ContainerId;
@@ -89,11 +115,14 @@ public sealed class JobExecutionService(
             job.PublishedPort = deployment.PublishedPort;
             job.DeploymentUrl = deployment.DeploymentUrl;
             job.DeployedAtUtc = deployment.DeployedAtUtc;
-            await jobLogWriter.WriteLineAsync(job.Id, $"Container deployed: {job.ContainerName} at {job.DeploymentUrl}.", cancellationToken);
+            await jobLogWriter.WriteLineAsync(image.Id, $"Container deployed: {job.ContainerName} at {job.DeploymentUrl}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
 
             job.Status = JobStatus.Succeeded;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
+            job.CurrentImageId = image.Id;
+            image.Status = JobStatus.Succeeded;
+            image.CompletedAtUtc = job.CompletedAtUtc;
             await dbContext.SaveChangesAsync(cancellationToken);
 
             logger.LogInformation(
@@ -116,11 +145,14 @@ public sealed class JobExecutionService(
             job.PublishedPort = null;
             job.DeploymentUrl = null;
             job.DeployedAtUtc = null;
+            image.Status = JobStatus.Canceled;
+            image.ErrorMessage = "Job was canceled.";
+            image.CompletedAtUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
-            await jobLogWriter.WriteLineAsync(job.Id, $"Job failed: {ex.Message}", CancellationToken.None);
+            await jobLogWriter.WriteLineAsync(image.Id, $"Job failed: {ex.Message}", CancellationToken.None);
 
             await dockerContainerRuntime.StopAndRemoveAsync(job, CancellationToken.None);
             job.ContainerId = null;
@@ -132,6 +164,9 @@ public sealed class JobExecutionService(
             job.Status = JobStatus.Failed;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
             job.ErrorMessage = ex.Message;
+            image.Status = JobStatus.Failed;
+            image.ErrorMessage = ex.Message;
+            image.CompletedAtUtc = job.CompletedAtUtc;
             await dbContext.SaveChangesAsync(cancellationToken);
 
             logger.LogError(ex, "Job {JobId} failed.", jobId);
@@ -180,8 +215,37 @@ public sealed class JobExecutionService(
             return;
         }
 
-        await jobLogWriter.WriteLineAsync(jobId, "Job processing canceled.", cancellationToken);
         throw new JobCanceledException();
+    }
+
+    private static async Task<string?> TryResolveCommitShaAsync(string repositoryPath, CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = $"-C \"{repositoryPath}\" rev-parse HEAD",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        if (!process.Start())
+        {
+            return null;
+        }
+
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+        var standardOutput = (await standardOutputTask).Trim();
+        _ = await standardErrorTask;
+
+        return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(standardOutput)
+            ? standardOutput
+            : null;
     }
 
     private sealed class JobCanceledException : Exception;

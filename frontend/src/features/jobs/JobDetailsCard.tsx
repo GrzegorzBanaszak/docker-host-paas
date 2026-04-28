@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { JobDetails } from "./types";
 import { JobStatusBadge } from "./JobStatusBadge";
+import { StackBadge } from "../../components/StackBadge";
 
 export function JobDetailsCard({ job }: { job: JobDetails }) {
   const [copied, setCopied] = useState(false);
@@ -28,18 +29,32 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
           </div>
           <div>
             <p className="text-xs text-steel">Detected Stack</p>
-            <p className="mt-1 font-mono text-[13px] text-ink">{job.detectedStack || "pending"}</p>
+            <div className="mt-2">
+              <StackBadge stack={job.detectedStack} />
+            </div>
           </div>
           <div>
             <p className="text-xs text-steel">Image Tag</p>
             <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink">
-              {job.generatedImageTag || "-"}
+              {job.currentImage?.imageTag || job.generatedImageTag || "-"}
             </div>
           </div>
           <div>
             <p className="text-xs text-steel">Image ID</p>
-            <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink" title={job.imageId || "-"}>
-              {job.imageId ? abbreviateMiddle(job.imageId, 18, 12) : "-"}
+            <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink" title={job.currentImage?.imageId || job.imageId || "-"}>
+              {job.currentImage?.imageId || job.imageId ? abbreviateMiddle(job.currentImage?.imageId || job.imageId || "", 18, 12) : "-"}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-steel">Current Image</p>
+              <p className="mt-1 font-mono text-[12px] text-ink">
+                {job.currentImage ? `#${job.currentImage.id.slice(0, 8)}` : "not assigned"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-steel">Image History</p>
+              <p className="mt-1 text-sm text-ink">{job.images.length}</p>
             </div>
           </div>
           <div>
@@ -58,6 +73,12 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
             <p className="text-xs text-steel">Status</p>
             <div className="mt-2">
               <JobStatusBadge status={job.status} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-steel">Container Status</p>
+            <div className="mt-2">
+              <ContainerStatusBadge status={job.containerStatus} />
             </div>
           </div>
           <div>
@@ -139,4 +160,26 @@ function abbreviateMiddle(value: string, startLength: number, endLength: number)
   }
 
   return `${value.slice(0, startLength)}...${value.slice(-endLength)}`;
+}
+
+function ContainerStatusBadge({ status }: { status?: string | null }) {
+  const normalized = status ?? "not_found";
+  const className =
+    normalized === "running"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : normalized === "restarting"
+        ? "border-sky-200 bg-sky-50 text-sky-700"
+        : normalized === "paused"
+          ? "border-amber-200 bg-amber-50 text-amber-700"
+          : normalized === "created"
+            ? "border-slate-200 bg-slate-50 text-slate-700"
+            : normalized === "exited" || normalized === "dead"
+              ? "border-rose-200 bg-rose-50 text-rose-700"
+              : "border-outline bg-surface-low text-steel";
+
+  return (
+    <span className={`inline-flex items-center rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${className}`}>
+      {normalized.replace("_", " ")}
+    </span>
+  );
 }

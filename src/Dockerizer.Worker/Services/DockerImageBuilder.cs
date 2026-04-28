@@ -11,11 +11,11 @@ public sealed class DockerImageBuilder(
 {
     private readonly WorkerOptions _workerOptions = workerOptions.Value;
 
-    public async Task<DockerBuildResult> BuildAsync(Job job, string repositoryPath, CancellationToken cancellationToken)
+    public async Task<DockerBuildResult> BuildAsync(Job job, JobImage image, string repositoryPath, CancellationToken cancellationToken)
     {
-        var imageTag = BuildImageTag(job);
+        var imageTag = BuildImageTag(job, image);
         var timeout = TimeSpan.FromMinutes(_workerOptions.DockerBuildTimeoutMinutes);
-        var imageIdFilePath = Path.Combine(Directory.GetParent(repositoryPath)!.FullName, $".docker-image-{job.Id:N}.iid");
+        var imageIdFilePath = Path.Combine(Directory.GetParent(repositoryPath)!.FullName, $".docker-image-{image.Id:N}.iid");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linkedCts.CancelAfter(timeout);
@@ -67,12 +67,12 @@ public sealed class DockerImageBuilder(
         return new DockerBuildResult(imageTag, imageId);
     }
 
-    private string BuildImageTag(Job job)
+    private string BuildImageTag(Job job, JobImage image)
     {
         var prefix = string.IsNullOrWhiteSpace(_workerOptions.DockerImagePrefix)
             ? "dockerizer"
             : _workerOptions.DockerImagePrefix.Trim().ToLowerInvariant();
 
-        return $"{prefix}:{job.Id:N}";
+        return $"{prefix}:{job.Id:N}-{image.Id:N}";
     }
 }

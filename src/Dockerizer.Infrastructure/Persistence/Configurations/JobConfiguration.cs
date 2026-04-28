@@ -52,12 +52,23 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(job => job.CreatedAtUtc)
             .IsRequired();
 
+        builder.HasOne(job => job.CurrentImage)
+            .WithMany()
+            .HasForeignKey(job => job.CurrentImageId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasMany(job => job.Artifacts)
             .WithOne(artifact => artifact.Job)
             .HasForeignKey(artifact => artifact.JobId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(job => job.Images)
+            .WithOne(image => image.Job)
+            .HasForeignKey(image => image.JobId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(job => job.CreatedAtUtc);
+        builder.HasIndex(job => job.CurrentImageId);
         builder.HasIndex(job => job.Status);
     }
 }
