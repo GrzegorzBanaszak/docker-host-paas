@@ -45,7 +45,7 @@ export function AppShell({ children }: PropsWithChildren) {
             <p className="mt-1 font-mono text-[11px] text-slate-500">Engine v2.4.0</p>
           </div>
           <Link
-            to="/"
+            to="/jobs/new"
             className="mb-4 flex items-center justify-center gap-2 rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
           >
             <Icon name="add" className="text-[18px]" />

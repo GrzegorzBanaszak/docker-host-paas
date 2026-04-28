@@ -2,6 +2,7 @@ export type JobStatus = "Queued" | "Running" | "Succeeded" | "Failed" | "Cancele
 
 export type JobListItem = {
   id: string;
+  name: string;
   repositoryUrl: string;
   branch?: string | null;
   status: JobStatus;
@@ -14,11 +15,13 @@ export type JobListItem = {
 
 export type JobDetails = {
   id: string;
+  name: string;
   repositoryUrl: string;
   branch?: string | null;
   status: JobStatus;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
+  imageId?: string | null;
   containerId?: string | null;
   containerName?: string | null;
   containerPort?: number | null;
@@ -48,6 +51,7 @@ export type JobFileContent = {
 };
 
 export type CreateJobInput = {
+  name: string;
   repositoryUrl: string;
   branch?: string;
 };

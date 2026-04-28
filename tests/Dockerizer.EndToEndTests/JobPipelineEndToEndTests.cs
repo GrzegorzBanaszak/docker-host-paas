@@ -30,7 +30,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
 
         var created = await jobsService.CreateAsync(
-            new CreateJobCommand("https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
             CancellationToken.None);
 
         await worker.ProcessAsync(created.Id, CancellationToken.None);
@@ -40,9 +40,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var logs = await jobsService.GetLogsAsync(created.Id, CancellationToken.None);
 
         Assert.NotNull(job);
+        Assert.Equal("artisan-bakery-landing-page", job!.Name);
         Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
         Assert.Equal("nodejs", job.DetectedStack);
         Assert.Equal("dockerizer:test-image", job.GeneratedImageTag);
+        Assert.Equal("sha256:test-image-id", job.ImageId);
         Assert.Equal(3000, job.ContainerPort);
         Assert.Equal(45000, job.PublishedPort);
         Assert.Equal("http://localhost:45000", job.DeploymentUrl);
@@ -55,6 +57,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.NotNull(logs);
         Assert.Contains("Container deployed", logs!.Content);
         Assert.Single(fakeRuntime.RunRequests);
+        Assert.False(Directory.Exists(Path.Combine(_tempRoot, "workspace", created.Id.ToString("N"))));
     }
 
     [Fact]
@@ -68,7 +71,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
 
         var created = await jobsService.CreateAsync(
-            new CreateJobCommand("https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
             CancellationToken.None);
 
         await worker.ProcessAsync(created.Id, CancellationToken.None);
@@ -92,14 +95,16 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var fakeRuntime = new FakeDockerContainerRuntime();
         await using var context = CreateDbContext();
         var queue = new InMemoryJobQueue();
-        var artifactService = CreateArtifactService();
-        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime);
+        var artifactService = CreateArtifactService(context);
+        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime, new FakeRepositoryBranchProvider());
 
         var job = new Job
         {
+            Name = "artisan-bakery-landing-page",
             RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
             Status = JobStatus.Succeeded,
             GeneratedImageTag = "dockerizer:test-image",
+            ImageId = "sha256:test-image-id",
             ContainerId = "container-1",
             ContainerName = "dockerizer-job-test",
             ContainerPort = 3000,
@@ -117,6 +122,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.NotNull(retried);
         Assert.Equal(nameof(JobStatus.Queued), retried!.Status);
         Assert.Null(retried.GeneratedImageTag);
+        Assert.Null(retried.ImageId);
         Assert.Null(retried.ContainerId);
         Assert.Null(retried.ContainerName);
         Assert.Null(retried.PublishedPort);
@@ -135,9 +141,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
         var job = new Job
         {
+            Name = "artisan-bakery-landing-page",
             RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
             Status = JobStatus.Succeeded,
             GeneratedImageTag = "dockerizer:test-image",
+            ImageId = "sha256:test-image-id",
             ContainerId = "container-1",
             ContainerName = "dockerizer-job-test",
             ContainerPort = 3000,
@@ -158,6 +166,26 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.Null(canceled.PublishedPort);
         Assert.Null(canceled.DeploymentUrl);
         Assert.Single(fakeRuntime.StopRequests);
+    }
+
+    [Fact]
+    public async Task CleanupWorkspaceAsync_Removes_ReadOnlyFiles()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await using var context = CreateDbContext();
+        var artifactService = CreateArtifactService(context);
+        var jobId = Guid.NewGuid();
+        var workspacePath = Path.Combine(_tempRoot, "workspace", jobId.ToString("N"));
+        var gitDirectoryPath = Path.Combine(workspacePath, "repository", ".git", "objects", "pack");
+        Directory.CreateDirectory(gitDirectoryPath);
+
+        var packFilePath = Path.Combine(gitDirectoryPath, "pack-test.idx");
+        await File.WriteAllTextAsync(packFilePath, "content");
+        File.SetAttributes(packFilePath, FileAttributes.ReadOnly);
+
+        await artifactService.CleanupWorkspaceAsync(jobId, CancellationToken.None);
+
+        Assert.False(Directory.Exists(workspacePath));
     }
 
     public void Dispose()
@@ -182,8 +210,9 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         return new JobsService(
             context,
             new InMemoryJobQueue(),
-            CreateArtifactService(),
-            fakeRuntime);
+            CreateArtifactService(context),
+            fakeRuntime,
+            new FakeRepositoryBranchProvider());
     }
 
     private JobExecutionService CreateJobExecutionService(
@@ -200,22 +229,23 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             new ContainerPortResolver(),
             new FakeDockerImageBuilder(),
             fakeRuntime,
-            new JobLogWriter(),
-            CreateArtifactService(),
+            new JobLogWriter(CreateArtifactService(context)),
+            CreateArtifactService(context),
             Options.Create(new WorkerOptions
             {
                 WorkspaceRoot = Path.Combine(_tempRoot, "workspace"),
-                CleanupWorkspaceAfterCompletion = false,
+                CleanupWorkspaceAfterCompletion = true,
             }),
             NullLogger<JobExecutionService>.Instance);
     }
 
-    private JobArtifactService CreateArtifactService()
+    private JobArtifactService CreateArtifactService(DockerizerDbContext context)
     {
-        return new JobArtifactService(new ArtifactOptions
+        return new JobArtifactService(
+            context,
+            new ArtifactOptions
         {
             WorkspaceRoot = Path.Combine(_tempRoot, "workspace"),
-            CleanupWorkspaceAfterCompletion = false,
         });
     }
 
@@ -266,11 +296,20 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
     private sealed class FakeDockerImageBuilder : IDockerImageBuilder
     {
-        public Task<string> BuildAsync(Job job, string repositoryPath, CancellationToken cancellationToken)
+        public Task<DockerBuildResult> BuildAsync(Job job, string repositoryPath, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Assert.True(File.Exists(Path.Combine(repositoryPath, "Dockerfile")));
-            return Task.FromResult("dockerizer:test-image");
+            return Task.FromResult(new DockerBuildResult("dockerizer:test-image", "sha256:test-image-id"));
+        }
+    }
+
+    private sealed class FakeRepositoryBranchProvider : IRepositoryBranchProvider
+    {
+        public Task<IReadOnlyCollection<string>> GetBranchesAsync(string repositoryUrl, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyCollection<string>>(["main", "release"]);
         }
     }
 

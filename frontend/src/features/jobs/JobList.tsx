@@ -14,7 +14,7 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
         <thead>
           <tr className="border-b border-outline bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
             {mode === "full" ? <th className="px-4 py-3">Job ID</th> : null}
-            <th className="px-4 py-3">Repository</th>
+            <th className="px-4 py-3">Name</th>
             <th className="px-4 py-3">Branch</th>
             <th className="px-4 py-3">Stack</th>
             <th className="px-4 py-3">Status</th>
@@ -30,7 +30,14 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
               {mode === "full" ? (
                 <td className="px-4 py-3 font-mono text-[12px] text-ink">#{job.id.slice(0, 8)}</td>
               ) : null}
-              <td className="px-4 py-3 font-medium text-secondary">{job.repositoryUrl}</td>
+              <td className="px-4 py-3">
+                <div className="space-y-1">
+                  <div className="font-medium text-secondary">{job.name}</div>
+                  <div className="truncate text-[12px] text-steel" title={job.repositoryUrl}>
+                    {job.repositoryUrl}
+                  </div>
+                </div>
+              </td>
               <td className="px-4 py-3">
                 <span className="font-mono text-[12px] text-steel">{job.branch || "main"}</span>
               </td>

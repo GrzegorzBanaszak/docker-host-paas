@@ -3,11 +3,13 @@ namespace Dockerizer.Domain.Entities;
 public sealed class Job
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = string.Empty;
     public string RepositoryUrl { get; set; } = string.Empty;
     public string? Branch { get; set; }
     public JobStatus Status { get; set; } = JobStatus.Queued;
     public string? DetectedStack { get; set; }
     public string? GeneratedImageTag { get; set; }
+    public string? ImageId { get; set; }
     public string? ContainerId { get; set; }
     public string? ContainerName { get; set; }
     public int? ContainerPort { get; set; }
@@ -18,4 +20,5 @@ public sealed class Job
     public DateTimeOffset? StartedAtUtc { get; set; }
     public DateTimeOffset? DeployedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
+    public ICollection<JobArtifact> Artifacts { get; set; } = [];
 }

@@ -12,6 +12,10 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
 
         builder.HasKey(job => job.Id);
 
+        builder.Property(job => job.Name)
+            .HasMaxLength(200)
+            .IsRequired();
+
         builder.Property(job => job.RepositoryUrl)
             .HasMaxLength(2048)
             .IsRequired();
@@ -30,6 +34,9 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(job => job.GeneratedImageTag)
             .HasMaxLength(256);
 
+        builder.Property(job => job.ImageId)
+            .HasMaxLength(256);
+
         builder.Property(job => job.ContainerId)
             .HasMaxLength(128);
 
@@ -44,6 +51,11 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
 
         builder.Property(job => job.CreatedAtUtc)
             .IsRequired();
+
+        builder.HasMany(job => job.Artifacts)
+            .WithOne(artifact => artifact.Job)
+            .HasForeignKey(artifact => artifact.JobId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(job => job.CreatedAtUtc);
         builder.HasIndex(job => job.Status);

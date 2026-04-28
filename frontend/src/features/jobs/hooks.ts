@@ -56,6 +56,12 @@ export function useCreateJob() {
   });
 }
 
+export function useRepositoryBranches() {
+  return useMutation({
+    mutationFn: (repositoryUrl: string) => api.getRepositoryBranches(repositoryUrl)
+  });
+}
+
 export function useRetryJob(jobId: string) {
   const queryClient = useQueryClient();
 

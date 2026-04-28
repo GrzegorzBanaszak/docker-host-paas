@@ -23,6 +23,10 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
         </h3>
         <div className="space-y-4">
           <div>
+            <p className="text-xs text-steel">Job Name</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{job.name}</p>
+          </div>
+          <div>
             <p className="text-xs text-steel">Detected Stack</p>
             <p className="mt-1 font-mono text-[13px] text-ink">{job.detectedStack || "pending"}</p>
           </div>
@@ -30,6 +34,12 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
             <p className="text-xs text-steel">Image Tag</p>
             <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink">
               {job.generatedImageTag || "-"}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-steel">Image ID</p>
+            <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink" title={job.imageId || "-"}>
+              {job.imageId ? abbreviateMiddle(job.imageId, 18, 12) : "-"}
             </div>
           </div>
           <div>

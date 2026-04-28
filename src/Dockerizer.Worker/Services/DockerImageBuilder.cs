@@ -11,10 +11,11 @@ public sealed class DockerImageBuilder(
 {
     private readonly WorkerOptions _workerOptions = workerOptions.Value;
 
-    public async Task<string> BuildAsync(Job job, string repositoryPath, CancellationToken cancellationToken)
+    public async Task<DockerBuildResult> BuildAsync(Job job, string repositoryPath, CancellationToken cancellationToken)
     {
         var imageTag = BuildImageTag(job);
         var timeout = TimeSpan.FromMinutes(_workerOptions.DockerBuildTimeoutMinutes);
+        var imageIdFilePath = Path.Combine(Directory.GetParent(repositoryPath)!.FullName, $".docker-image-{job.Id:N}.iid");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linkedCts.CancelAfter(timeout);
@@ -22,7 +23,7 @@ public sealed class DockerImageBuilder(
         var startInfo = new ProcessStartInfo
         {
             FileName = "docker",
-            Arguments = $"build -t {imageTag} \"{repositoryPath}\"",
+            Arguments = $"build --iidfile \"{imageIdFilePath}\" -t {imageTag} \"{repositoryPath}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -54,8 +55,16 @@ public sealed class DockerImageBuilder(
                 $"docker build failed for job {job.Id} with exit code {process.ExitCode}: {standardError.Trim()}");
         }
 
+        if (!File.Exists(imageIdFilePath))
+        {
+            throw new InvalidOperationException($"docker build completed for job {job.Id}, but no image id file was produced.");
+        }
+
+        var imageId = (await File.ReadAllTextAsync(imageIdFilePath, linkedCts.Token)).Trim();
+        File.Delete(imageIdFilePath);
+
         logger.LogInformation("Docker image {ImageTag} built successfully for job {JobId}.", imageTag, job.Id);
-        return imageTag;
+        return new DockerBuildResult(imageTag, imageId);
     }
 
     private string BuildImageTag(Job job)

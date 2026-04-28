@@ -13,12 +13,14 @@ public sealed class JobsService(
     DockerizerDbContext dbContext,
     IJobQueue jobQueue,
     JobArtifactService artifactService,
-    IDockerContainerRuntime dockerContainerRuntime) : IJobsService
+    IDockerContainerRuntime dockerContainerRuntime,
+    IRepositoryBranchProvider repositoryBranchProvider) : IJobsService
 {
     public async Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken)
     {
         var job = new Job
         {
+            Name = command.Name.Trim(),
             RepositoryUrl = command.RepositoryUrl.Trim(),
             Branch = string.IsNullOrWhiteSpace(command.Branch) ? null : command.Branch.Trim(),
             Status = JobStatus.Queued,
@@ -31,6 +33,9 @@ public sealed class JobsService(
         return MapDetails(job);
     }
 
+    public Task<IReadOnlyCollection<string>> GetBranchesAsync(string repositoryUrl, CancellationToken cancellationToken) =>
+        repositoryBranchProvider.GetBranchesAsync(repositoryUrl.Trim(), cancellationToken);
+
     public async Task<IReadOnlyCollection<JobListItemDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         return await dbContext.Jobs
@@ -38,6 +43,7 @@ public sealed class JobsService(
             .OrderByDescending(job => job.CreatedAtUtc)
             .Select(job => new JobListItemDto(
                 job.Id,
+                job.Name,
                 job.RepositoryUrl,
                 job.Branch,
                 job.Status.ToString(),
@@ -77,6 +83,7 @@ public sealed class JobsService(
         job.Status = JobStatus.Queued;
         job.DetectedStack = null;
         job.GeneratedImageTag = null;
+        job.ImageId = null;
         job.ContainerId = null;
         job.ContainerName = null;
         job.ContainerPort = null;
@@ -135,11 +142,13 @@ public sealed class JobsService(
     private static JobDetailsDto MapDetails(Job job) =>
         new(
             job.Id,
+            job.Name,
             job.RepositoryUrl,
             job.Branch,
             job.Status.ToString(),
             job.DetectedStack,
             job.GeneratedImageTag,
+            job.ImageId,
             job.ContainerId,
             job.ContainerName,
             job.ContainerPort,

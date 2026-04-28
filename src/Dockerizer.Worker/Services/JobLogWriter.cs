@@ -1,14 +1,9 @@
+using Dockerizer.Infrastructure.Artifacts;
+
 namespace Dockerizer.Worker.Services;
 
-public sealed class JobLogWriter
+public sealed class JobLogWriter(JobArtifactService artifactService)
 {
-    public Task WriteLineAsync(string workspacePath, string message, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(workspacePath);
-
-        var logPath = Path.Combine(workspacePath, "job.log");
-        var line = $"[{DateTimeOffset.UtcNow:O}] {message}{Environment.NewLine}";
-        return File.AppendAllTextAsync(logPath, line, cancellationToken);
-    }
+    public Task WriteLineAsync(Guid jobId, string message, CancellationToken cancellationToken) =>
+        artifactService.AppendLogLineAsync(jobId, message, cancellationToken);
 }

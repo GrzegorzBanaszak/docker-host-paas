@@ -48,6 +48,7 @@ public sealed class JobExecutionService(
         job.CompletedAtUtc = null;
         job.ErrorMessage = null;
         job.GeneratedImageTag = null;
+        job.ImageId = null;
         job.ContainerId = null;
         job.ContainerName = null;
         job.ContainerPort = null;
@@ -56,48 +57,51 @@ public sealed class JobExecutionService(
         job.DeployedAtUtc = null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await jobArtifactService.ResetExecutionArtifactsAsync(job.Id, cancellationToken);
 
         try
         {
             var workspacePath = PrepareWorkspace(job.Id);
             var repositoryPath = Path.Combine(workspacePath, "repository");
-            await jobLogWriter.WriteLineAsync(workspacePath, $"Starting job for repository {job.RepositoryUrl}.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(job.Id, $"Starting job for repository {job.RepositoryUrl}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
             await gitRepositoryCloner.CloneAsync(job, repositoryPath, cancellationToken);
-            await jobLogWriter.WriteLineAsync(workspacePath, "Repository cloned successfully.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(job.Id, "Repository cloned successfully.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
             job.DetectedStack = await repositoryStackDetector.DetectAsync(repositoryPath, cancellationToken);
-            await jobLogWriter.WriteLineAsync(workspacePath, $"Detected stack: {job.DetectedStack}.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(job.Id, $"Detected stack: {job.DetectedStack}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
             await containerizationTemplateGenerator.GenerateAsync(repositoryPath, job.DetectedStack, cancellationToken);
-            await jobLogWriter.WriteLineAsync(workspacePath, "Containerization files generated.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            await jobArtifactService.CaptureGeneratedFilesAsync(job.Id, repositoryPath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(job.Id, "Containerization files generated and stored.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
             job.ContainerPort = containerPortResolver.Resolve(repositoryPath, job.DetectedStack);
-            await jobLogWriter.WriteLineAsync(workspacePath, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
-            job.GeneratedImageTag = await dockerImageBuilder.BuildAsync(job, repositoryPath, cancellationToken);
-            await jobLogWriter.WriteLineAsync(workspacePath, $"Docker image built: {job.GeneratedImageTag}.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(job.Id, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
+            var buildResult = await dockerImageBuilder.BuildAsync(job, repositoryPath, cancellationToken);
+            job.GeneratedImageTag = buildResult.ImageTag;
+            job.ImageId = buildResult.ImageId;
+            await jobLogWriter.WriteLineAsync(job.Id, $"Docker image built: {job.GeneratedImageTag} ({job.ImageId}).", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
             var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort.Value, cancellationToken);
             job.ContainerId = deployment.ContainerId;
             job.ContainerName = deployment.ContainerName;
             job.PublishedPort = deployment.PublishedPort;
             job.DeploymentUrl = deployment.DeploymentUrl;
             job.DeployedAtUtc = deployment.DeployedAtUtc;
-            await jobLogWriter.WriteLineAsync(workspacePath, $"Container deployed: {job.ContainerName} at {job.DeploymentUrl}.", cancellationToken);
-            await ThrowIfCanceledAsync(job.Id, workspacePath, cancellationToken);
+            await jobLogWriter.WriteLineAsync(job.Id, $"Container deployed: {job.ContainerName} at {job.DeploymentUrl}.", cancellationToken);
+            await ThrowIfCanceledAsync(job.Id, cancellationToken);
 
             job.Status = JobStatus.Succeeded;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            await CleanupWorkspaceIfConfiguredAsync(job.Id, cancellationToken);
-
             logger.LogInformation(
-                "Job {JobId} completed successfully with detected stack {DetectedStack} and image {GeneratedImageTag}.",
+                "Job {JobId} completed successfully with detected stack {DetectedStack}, image {GeneratedImageTag}, and image id {ImageId}.",
                 jobId,
                 job.DetectedStack,
-                job.GeneratedImageTag);
+                job.GeneratedImageTag,
+                job.ImageId);
         }
         catch (OperationCanceledException)
         {
@@ -112,15 +116,11 @@ public sealed class JobExecutionService(
             job.PublishedPort = null;
             job.DeploymentUrl = null;
             job.DeployedAtUtc = null;
-            await CleanupWorkspaceIfConfiguredAsync(job.Id, cancellationToken);
+            await dbContext.SaveChangesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
-            var workspacePath = SafeWorkspacePath(job.Id);
-            if (workspacePath is not null)
-            {
-                await jobLogWriter.WriteLineAsync(workspacePath, $"Job failed: {ex.Message}", CancellationToken.None);
-            }
+            await jobLogWriter.WriteLineAsync(job.Id, $"Job failed: {ex.Message}", CancellationToken.None);
 
             await dockerContainerRuntime.StopAndRemoveAsync(job, CancellationToken.None);
             job.ContainerId = null;
@@ -134,9 +134,18 @@ public sealed class JobExecutionService(
             job.ErrorMessage = ex.Message;
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            await CleanupWorkspaceIfConfiguredAsync(job.Id, cancellationToken);
-
             logger.LogError(ex, "Job {JobId} failed.", jobId);
+        }
+        finally
+        {
+            try
+            {
+                await jobArtifactService.CleanupWorkspaceAsync(job.Id, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Workspace cleanup failed for job {JobId}.", job.Id);
+            }
         }
     }
 
@@ -159,20 +168,7 @@ public sealed class JobExecutionService(
         return workspacePath;
     }
 
-    private string? SafeWorkspacePath(Guid jobId)
-    {
-        try
-        {
-            var workspaceRoot = Path.GetFullPath(_workerOptions.WorkspaceRoot);
-            return Path.GetFullPath(Path.Combine(workspaceRoot, jobId.ToString("N")));
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private async Task ThrowIfCanceledAsync(Guid jobId, string workspacePath, CancellationToken cancellationToken)
+    private async Task ThrowIfCanceledAsync(Guid jobId, CancellationToken cancellationToken)
     {
         var currentStatus = await dbContext.Jobs
             .Where(x => x.Id == jobId)
@@ -184,18 +180,8 @@ public sealed class JobExecutionService(
             return;
         }
 
-        await jobLogWriter.WriteLineAsync(workspacePath, "Job processing canceled.", cancellationToken);
+        await jobLogWriter.WriteLineAsync(jobId, "Job processing canceled.", cancellationToken);
         throw new JobCanceledException();
-    }
-
-    private Task CleanupWorkspaceIfConfiguredAsync(Guid jobId, CancellationToken cancellationToken)
-    {
-        if (!_workerOptions.CleanupWorkspaceAfterCompletion)
-        {
-            return Task.CompletedTask;
-        }
-
-        return jobArtifactService.CleanupWorkspaceAsync(jobId, cancellationToken);
     }
 
     private sealed class JobCanceledException : Exception;

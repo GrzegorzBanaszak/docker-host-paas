@@ -33,8 +33,6 @@ public static class DependencyInjection
         var artifactOptions = new ArtifactOptions
         {
             WorkspaceRoot = configuration[ArtifactOptions.WorkspaceRootConfigKey] ?? ".worker-data/repos",
-            CleanupWorkspaceAfterCompletion = bool.TryParse(configuration["Worker:CleanupWorkspaceAfterCompletion"], out var cleanupWorkspaceAfterCompletion)
-                && cleanupWorkspaceAfterCompletion,
         };
         var dockerRuntimeOptions = new DockerRuntimeOptions
         {
@@ -58,7 +56,8 @@ public static class DependencyInjection
         services.AddSingleton(Options.Create(redisOptions));
         services.AddSingleton(artifactOptions);
         services.AddSingleton(Options.Create(dockerRuntimeOptions));
-        services.AddSingleton<JobArtifactService>();
+        services.AddScoped<JobArtifactService>();
+        services.AddSingleton<IRepositoryBranchProvider, GitRepositoryBranchProvider>();
         services.AddSingleton<IDockerContainerRuntime, DockerContainerRuntime>();
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IJobQueue, RedisJobQueue>();

@@ -38,12 +38,14 @@ export function JobDetailsPage() {
             <Link to="/jobs" className="flex items-center text-steel transition hover:text-ink">
               <Icon name="arrow_back" className="text-[16px]" />
             </Link>
-            <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-ink">
-              Job <span className="font-mono text-steel">#{jobQuery.data.id.slice(0, 8)}</span>
-            </h1>
+            <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-ink">{jobQuery.data.name}</h1>
             <JobStatusBadge status={jobQuery.data.status} />
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs text-steel">
+            <span className="flex items-center gap-1 font-mono text-[11px]">
+              <Icon name="fingerprint" className="text-[14px]" />
+              #{jobQuery.data.id.slice(0, 8)}
+            </span>
             <span className="flex items-center gap-1">
               <Icon name="code" className="text-[14px]" />
               {jobQuery.data.repositoryUrl}
@@ -118,6 +120,7 @@ function buildTimeline(job: {
   completedAtUtc?: string | null;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
+  imageId?: string | null;
   deploymentUrl?: string | null;
   deployedAtUtc?: string | null;
 }) {
@@ -130,7 +133,7 @@ function buildTimeline(job: {
   const isFinished = job.status === "Succeeded";
   const isFailed = job.status === "Failed";
   const isCanceled = job.status === "Canceled";
-  const buildFinished = Boolean(job.generatedImageTag);
+  const buildFinished = Boolean(job.imageId || job.generatedImageTag);
   const deployFinished = Boolean(job.deploymentUrl);
   const isRunningDeploy = job.status === "Running" && buildFinished && !deployFinished;
 

@@ -12,7 +12,7 @@ builder.Services.AddSingleton<RepositoryStackDetector>();
 builder.Services.AddSingleton<ContainerizationTemplateGenerator>();
 builder.Services.AddSingleton<ContainerPortResolver>();
 builder.Services.AddSingleton<IDockerImageBuilder, DockerImageBuilder>();
-builder.Services.AddSingleton<JobLogWriter>();
+builder.Services.AddScoped<JobLogWriter>();
 builder.Services.AddHostedService<JobProcessingWorker>();
 
 var host = builder.Build();

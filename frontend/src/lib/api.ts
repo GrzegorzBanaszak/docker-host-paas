@@ -24,11 +24,31 @@ async function request<T>(input: RequestInfo, init?: RequestOptions): Promise<T>
   }
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "Request failed.");
+    throw new Error(await getErrorMessage(response));
   }
 
   return response.json() as Promise<T>;
+}
+
+async function getErrorMessage(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const payload = (await response.json()) as {
+      title?: string;
+      detail?: string;
+      errors?: Record<string, string[]>;
+    };
+
+    const firstValidationMessage = Object.values(payload.errors ?? {})
+      .flat()
+      .find(Boolean);
+
+    return firstValidationMessage ?? payload.detail ?? payload.title ?? "Request failed.";
+  }
+
+  const message = await response.text();
+  return message || "Request failed.";
 }
 
 export const api = {
@@ -37,6 +57,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
+  getRepositoryBranches: (repositoryUrl: string) =>
+    request<string[]>(`/api/jobs/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}`),
   getJobs: () => request<JobListItem[]>("/api/jobs"),
   getJob: (jobId: string) => request<JobDetails>(`/api/jobs/${jobId}`),
   getLogs: (jobId: string) => request<JobLog | null>(`/api/jobs/${jobId}/logs`, { allowNotFound: true }),

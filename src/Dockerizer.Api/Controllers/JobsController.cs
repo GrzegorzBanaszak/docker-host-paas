@@ -16,6 +16,33 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
         return Ok(jobs);
     }
 
+    [HttpGet("branches")]
+    public async Task<IActionResult> GetBranches([FromQuery] string repositoryUrl, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryUrl))
+        {
+            ModelState.AddModelError(nameof(repositoryUrl), "RepositoryUrl is required.");
+            return ValidationProblem(ModelState);
+        }
+
+        if (!Uri.TryCreate(repositoryUrl, UriKind.Absolute, out _))
+        {
+            ModelState.AddModelError(nameof(repositoryUrl), "RepositoryUrl must be a valid absolute URI.");
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var branches = await jobsService.GetBranchesAsync(repositoryUrl, cancellationToken);
+            return Ok(branches);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(nameof(repositoryUrl), ex.Message);
+            return ValidationProblem(ModelState);
+        }
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
@@ -75,6 +102,12 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateJobApiRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            ModelState.AddModelError(nameof(request.Name), "Name is required.");
+            return ValidationProblem(ModelState);
+        }
+
         if (string.IsNullOrWhiteSpace(request.RepositoryUrl))
         {
             ModelState.AddModelError(nameof(request.RepositoryUrl), "RepositoryUrl is required.");
@@ -88,7 +121,7 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
         }
 
         var createdJob = await jobsService.CreateAsync(
-            new CreateJobCommand(request.RepositoryUrl, request.Branch),
+            new CreateJobCommand(request.Name, request.RepositoryUrl, request.Branch),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = createdJob.Id }, createdJob);

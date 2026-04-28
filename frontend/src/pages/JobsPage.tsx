@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { Panel } from "../components/Panel";
 import { JobList } from "../features/jobs/JobList";
@@ -5,6 +6,11 @@ import { useJobs } from "../features/jobs/hooks";
 
 export function JobsPage() {
   const jobsQuery = useJobs();
+  const [search, setSearch] = useState("");
+  const jobs = (jobsQuery.data ?? []).filter((job) => {
+    const haystack = [job.name, job.repositoryUrl, job.branch ?? "", job.status].join(" ").toLowerCase();
+    return haystack.includes(search.trim().toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
@@ -34,15 +40,17 @@ export function JobsPage() {
             </span>
             <input
               className="h-9 w-full rounded border border-outline bg-white pl-8 pr-3 text-sm outline-none focus:border-sky"
-              placeholder="Filter by Repository URL..."
+              placeholder="Filter by Job Name or Repo..."
               type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             />
           </div>
         </div>
       </div>
 
       <Panel>
-        <JobList jobs={jobsQuery.data ?? []} mode="full" />
+        <JobList jobs={jobs} mode="full" />
       </Panel>
     </div>
   );

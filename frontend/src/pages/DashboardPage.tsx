@@ -1,6 +1,6 @@
+import { Link } from "react-router-dom";
 import { Panel } from "../components/Panel";
 import { PageHeader } from "../components/PageHeader";
-import { JobCreateForm } from "../features/jobs/JobCreateForm";
 import { JobList } from "../features/jobs/JobList";
 import { useJobs } from "../features/jobs/hooks";
 
@@ -30,8 +30,19 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 xl:col-span-4">
-          <Panel title="Job Creation">
-            <JobCreateForm />
+          <Panel title="Pipeline Launch" description="Create a new containerization job from the dedicated setup view.">
+            <div className="space-y-4">
+              <p className="text-sm text-steel">
+                Choose a repository, inspect its branches, and name the deployment before the build pipeline starts.
+              </p>
+              <Link
+                to="/jobs/new"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded border border-slate-900 bg-slate-900 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
+              >
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                New Job
+              </Link>
+            </div>
           </Panel>
         </div>
 
