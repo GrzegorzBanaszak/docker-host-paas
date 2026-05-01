@@ -6,6 +6,7 @@ public sealed class Job
     public string Name { get; set; } = string.Empty;
     public string RepositoryUrl { get; set; } = string.Empty;
     public string? Branch { get; set; }
+    public string? ProjectPath { get; set; }
     public JobStatus Status { get; set; } = JobStatus.Queued;
     public string? DetectedStack { get; set; }
     public string? GeneratedImageTag { get; set; }

@@ -17,6 +17,9 @@ public sealed class ContainerPortResolver
         return detectedStack switch
         {
             "nodejs" => 3000,
+            "node-backend" => 3000,
+            "nextjs" => 3000,
+            "react-vite" => 80,
             "python" => 8000,
             "php" => 8000,
             "go" => 8080,

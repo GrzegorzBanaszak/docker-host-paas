@@ -17,7 +17,7 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
     }
 
     [HttpGet("branches")]
-    public async Task<IActionResult> GetBranches([FromQuery] string repositoryUrl, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetBranches([FromQuery] string repositoryUrl, [FromQuery] string? projectPath, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(repositoryUrl))
         {
@@ -33,7 +33,7 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
 
         try
         {
-            var inspection = await jobsService.GetRepositoryInspectionAsync(repositoryUrl, cancellationToken);
+            var inspection = await jobsService.GetRepositoryInspectionAsync(repositoryUrl, projectPath, cancellationToken);
             return Ok(inspection);
         }
         catch (InvalidOperationException ex)
@@ -181,7 +181,7 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
         }
 
         var createdJob = await jobsService.CreateAsync(
-            new CreateJobCommand(request.Name, request.RepositoryUrl, request.Branch),
+            new CreateJobCommand(request.Name, request.RepositoryUrl, request.Branch, request.ProjectPath),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = createdJob.Id }, createdJob);

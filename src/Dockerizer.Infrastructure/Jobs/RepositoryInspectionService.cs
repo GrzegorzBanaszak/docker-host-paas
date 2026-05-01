@@ -1,24 +1,32 @@
 using System.Diagnostics;
 using Dockerizer.Application.Jobs;
 using Dockerizer.Infrastructure.Artifacts;
+using Dockerizer.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Dockerizer.Infrastructure.Jobs;
 
 public sealed class RepositoryInspectionService(
     IRepositoryBranchProvider repositoryBranchProvider,
     ArtifactOptions artifactOptions,
+    IOptions<RepositorySecurityOptions> repositorySecurityOptions,
+    RepositoryProjectTypeDetector repositoryProjectTypeDetector,
+    RepositoryProjectPathResolver repositoryProjectPathResolver,
     ILogger<RepositoryInspectionService> logger)
 {
-    public async Task<RepositoryInspectionDto> InspectAsync(string repositoryUrl, CancellationToken cancellationToken)
-    {
-        var branches = await repositoryBranchProvider.GetBranchesAsync(repositoryUrl, cancellationToken);
-        var detectedStack = await TryDetectStackAsync(repositoryUrl, cancellationToken);
+    private readonly RepositorySecurityOptions _repositorySecurityOptions = repositorySecurityOptions.Value;
 
-        return new RepositoryInspectionDto(branches, detectedStack);
+    public async Task<RepositoryInspectionDto> InspectAsync(string repositoryUrl, string? projectPath, CancellationToken cancellationToken)
+    {
+        ValidateRepositoryUrl(repositoryUrl);
+        var branches = await repositoryBranchProvider.GetBranchesAsync(repositoryUrl, cancellationToken);
+        var detectedStack = await TryDetectStackAsync(repositoryUrl, projectPath, cancellationToken);
+
+        return new RepositoryInspectionDto(branches, repositoryProjectPathResolver.Normalize(projectPath), detectedStack);
     }
 
-    private async Task<string?> TryDetectStackAsync(string repositoryUrl, CancellationToken cancellationToken)
+    private async Task<string?> TryDetectStackAsync(string repositoryUrl, string? projectPath, CancellationToken cancellationToken)
     {
         var workspaceRoot = Path.GetFullPath(artifactOptions.WorkspaceRoot);
         Directory.CreateDirectory(workspaceRoot);
@@ -30,8 +38,9 @@ public sealed class RepositoryInspectionService(
 
         try
         {
-            await CloneDefaultBranchAsync(repositoryUrl, targetPath, cancellationToken);
-            return DetectStack(targetPath);
+            await CloneDefaultBranchAsync(repositoryUrl, targetPath, _repositorySecurityOptions.CloneTimeoutSeconds, cancellationToken);
+            var projectRootPath = repositoryProjectPathResolver.Resolve(targetPath, projectPath);
+            return repositoryProjectTypeDetector.Detect(projectRootPath);
         }
         catch (Exception ex)
         {
@@ -44,30 +53,44 @@ public sealed class RepositoryInspectionService(
         }
     }
 
-    private static async Task CloneDefaultBranchAsync(string repositoryUrl, string targetPath, CancellationToken cancellationToken)
+    private static async Task CloneDefaultBranchAsync(string repositoryUrl, string targetPath, int timeoutSeconds, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         var startInfo = new ProcessStartInfo
         {
             FileName = "git",
-            Arguments = $"clone --depth 1 \"{repositoryUrl}\" \"{targetPath}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        startInfo.ArgumentList.Add("clone");
+        startInfo.ArgumentList.Add("--depth");
+        startInfo.ArgumentList.Add("1");
+        startInfo.ArgumentList.Add(repositoryUrl);
+        startInfo.ArgumentList.Add(targetPath);
 
         using var process = new Process { StartInfo = startInfo };
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
         if (!process.Start())
         {
             throw new InvalidOperationException("Failed to start repository inspection clone.");
         }
 
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            TryKillProcess(process);
+            throw new TimeoutException($"repository inspection clone exceeded the configured timeout of {timeoutSeconds} seconds.");
+        }
 
         _ = await standardOutputTask;
         var standardError = await standardErrorTask;
@@ -78,53 +101,18 @@ public sealed class RepositoryInspectionService(
         }
     }
 
-    private static string DetectStack(string repositoryPath)
+    private void ValidateRepositoryUrl(string repositoryUrl)
     {
-        if (File.Exists(Path.Combine(repositoryPath, "package.json")))
+        if (!Uri.TryCreate(repositoryUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
         {
-            return "nodejs";
+            throw new InvalidOperationException("Repository URL must be an absolute HTTP or HTTPS URL.");
         }
 
-        if (File.Exists(Path.Combine(repositoryPath, "pyproject.toml")) ||
-            File.Exists(Path.Combine(repositoryPath, "requirements.txt")))
+        if (!_repositorySecurityOptions.AllowedHosts.Any(host => string.Equals(host, uri.Host, StringComparison.OrdinalIgnoreCase)))
         {
-            return "python";
+            throw new InvalidOperationException($"Repository host '{uri.Host}' is not allowed.");
         }
-
-        if (File.Exists(Path.Combine(repositoryPath, "composer.json")))
-        {
-            return "php";
-        }
-
-        if (File.Exists(Path.Combine(repositoryPath, "go.mod")))
-        {
-            return "go";
-        }
-
-        if (File.Exists(Path.Combine(repositoryPath, "pom.xml")) ||
-            File.Exists(Path.Combine(repositoryPath, "build.gradle")) ||
-            File.Exists(Path.Combine(repositoryPath, "build.gradle.kts")))
-        {
-            return "java";
-        }
-
-        if (Directory.EnumerateFiles(repositoryPath, "*.csproj", SearchOption.AllDirectories).Any() ||
-            Directory.EnumerateFiles(repositoryPath, "*.sln", SearchOption.TopDirectoryOnly).Any())
-        {
-            return "dotnet";
-        }
-
-        if (File.Exists(Path.Combine(repositoryPath, "Dockerfile")))
-        {
-            return "dockerfile-only";
-        }
-
-        if (File.Exists(Path.Combine(repositoryPath, "index.html")))
-        {
-            return "static-html";
-        }
-
-        return "unknown";
     }
 
     private static void TryDeleteDirectory(string directoryPath)
@@ -150,5 +138,19 @@ public sealed class RepositoryInspectionService(
         rootDirectoryInfo.Attributes &= ~FileAttributes.ReadOnly;
 
         Directory.Delete(directoryPath, recursive: true);
+    }
+
+    private static void TryKillProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+        }
     }
 }

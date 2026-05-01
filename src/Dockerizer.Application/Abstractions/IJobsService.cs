@@ -5,7 +5,7 @@ namespace Dockerizer.Application.Abstractions;
 public interface IJobsService
 {
     Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken);
-    Task<RepositoryInspectionDto> GetRepositoryInspectionAsync(string repositoryUrl, CancellationToken cancellationToken);
+    Task<RepositoryInspectionDto> GetRepositoryInspectionAsync(string repositoryUrl, string? projectPath, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<JobListItemDto>> GetAllAsync(CancellationToken cancellationToken);
     Task<JobDetailsDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> StartContainerAsync(Guid id, CancellationToken cancellationToken);

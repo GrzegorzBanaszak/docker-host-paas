@@ -17,7 +17,8 @@ export function JobCreateForm() {
     defaultValues: {
       name: "",
       repositoryUrl: "",
-      branch: ""
+      branch: "",
+      projectPath: ""
     }
   });
 
@@ -25,7 +26,8 @@ export function JobCreateForm() {
     const createdJob = await createJob.mutateAsync({
       name: values.name.trim(),
       repositoryUrl: values.repositoryUrl.trim(),
-      branch: values.branch?.trim() || undefined
+      branch: values.branch?.trim() || undefined,
+      projectPath: values.projectPath?.trim() || undefined
     });
 
     navigate(`/jobs/${createdJob.id}`);
@@ -33,25 +35,31 @@ export function JobCreateForm() {
 
   async function handleLoadBranches() {
     const repositoryUrl = form.getValues("repositoryUrl").trim();
-    const isValid = await form.trigger("repositoryUrl");
+    const projectPath = form.getValues("projectPath")?.trim();
+    const isValid = await form.trigger(["repositoryUrl", "projectPath"]);
     if (!isValid) {
       return;
     }
 
     try {
-      const inspection = await branchLookup.mutateAsync(repositoryUrl);
+      const inspection = await branchLookup.mutateAsync({
+        repositoryUrl,
+        projectPath: projectPath || undefined
+      });
       form.clearErrors("repositoryUrl");
+      form.clearErrors("projectPath");
       setBranches(inspection.branches);
       setDetectedStack(inspection.detectedStack ?? null);
+      form.setValue("projectPath", inspection.projectPath ?? "", { shouldValidate: true });
 
       const currentBranch = form.getValues("branch")?.trim();
       if (!currentBranch || !inspection.branches.includes(currentBranch)) {
         form.setValue("branch", inspection.branches[0] ?? "", { shouldValidate: true });
       }
     } catch (error) {
-      form.setError("repositoryUrl", {
+      form.setError(projectPath ? "projectPath" : "repositoryUrl", {
         type: "manual",
-        message: (error as Error).message || "Could not load repository branches."
+        message: (error as Error).message || "Could not inspect repository."
       });
       setBranches([]);
       setDetectedStack(null);
@@ -132,6 +140,30 @@ export function JobCreateForm() {
             <StackBadge stack={detectedStack} />
           </div>
         ) : null}
+      </div>
+
+      <div className="space-y-1">
+        <label className="block text-[11px] font-bold uppercase tracking-[0.12em] text-ink" htmlFor="projectPath">
+          Project Path
+        </label>
+        <input
+          id="projectPath"
+          type="text"
+          placeholder="apps/frontend"
+          className="h-10 w-full rounded border border-outline bg-surface px-3 text-sm text-ink outline-none transition focus:border-sky focus:ring-1 focus:ring-sky"
+          {...form.register("projectPath", {
+            onChange: () => {
+              setDetectedStack(null);
+            }
+          })}
+        />
+        {form.formState.errors.projectPath ? (
+          <p className="text-xs font-medium text-rose">{form.formState.errors.projectPath.message}</p>
+        ) : (
+          <p className="text-xs text-steel">
+            Optional relative path inside the repository, for example `frontend`, `backend/api`, or `apps/web`.
+          </p>
+        )}
       </div>
 
       <div className="space-y-1">

@@ -116,6 +116,10 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("ProjectPath")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
                     b.Property<int?>("PublishedPort")
                         .HasColumnType("integer");
 

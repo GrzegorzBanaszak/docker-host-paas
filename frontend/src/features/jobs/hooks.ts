@@ -10,6 +10,14 @@ export function useJobs() {
   });
 }
 
+export function useSystemResources() {
+  return useQuery({
+    queryKey: ["system", "resources"],
+    queryFn: api.getSystemResources,
+    refetchInterval: 5000
+  });
+}
+
 export function useJob(jobId: string) {
   return useQuery({
     queryKey: ["job", jobId],
@@ -101,7 +109,8 @@ export function useCreateJob() {
 
 export function useRepositoryBranches() {
   return useMutation({
-    mutationFn: (repositoryUrl: string) => api.getRepositoryInspection(repositoryUrl)
+    mutationFn: ({ repositoryUrl, projectPath }: { repositoryUrl: string; projectPath?: string }) =>
+      api.getRepositoryInspection(repositoryUrl, projectPath)
   });
 }
 

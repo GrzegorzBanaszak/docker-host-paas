@@ -4,6 +4,7 @@ using Dockerizer.Application.Jobs;
 using Dockerizer.Domain;
 using Dockerizer.Domain.Entities;
 using Dockerizer.Infrastructure.Artifacts;
+using Dockerizer.Infrastructure.Configuration;
 using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Images;
 using Dockerizer.Infrastructure.Jobs;
@@ -33,7 +34,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
 
         var created = await jobsService.CreateAsync(
-            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main", null),
             CancellationToken.None);
 
         await worker.ProcessAsync(created.Id, CancellationToken.None);
@@ -45,7 +46,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.NotNull(job);
         Assert.Equal("artisan-bakery-landing-page", job!.Name);
         Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
-        Assert.Equal("nodejs", job.DetectedStack);
+        Assert.Equal("node-backend", job.DetectedStack);
         Assert.NotNull(job.GeneratedImageTag);
         Assert.NotNull(job.ImageId);
         Assert.StartsWith("dockerizer:", job.GeneratedImageTag);
@@ -80,7 +81,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
 
         var created = await jobsService.CreateAsync(
-            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main", null),
             CancellationToken.None);
 
         await worker.ProcessAsync(created.Id, CancellationToken.None);
@@ -99,6 +100,117 @@ public sealed class JobPipelineEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task ProcessAsync_ForReactVite_UsesStaticBuildContainerization()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "react-vite");
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+        var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
+
+        var created = await jobsService.CreateAsync(
+            new CreateJobCommand("react-vite-fixture", "https://github.com/example/react-vite-fixture", "main", null),
+            CancellationToken.None);
+
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+
+        var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+        var dockerfile = await jobsService.GetFileContentAsync(created.Id, "Dockerfile", CancellationToken.None);
+
+        Assert.NotNull(job);
+        Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
+        Assert.Equal("react-vite", job.DetectedStack);
+        Assert.Equal(80, job.ContainerPort);
+        Assert.NotNull(dockerfile);
+        Assert.Contains("npm run build", dockerfile!.Content);
+        Assert.Contains("nginx:1.27-alpine", dockerfile.Content);
+        Assert.Contains("/app/dist", dockerfile.Content);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ForNextJs_UsesNodeSsrContainerization()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "nextjs");
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+        var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
+
+        var created = await jobsService.CreateAsync(
+            new CreateJobCommand("nextjs-fixture", "https://github.com/example/nextjs-fixture", "main", null),
+            CancellationToken.None);
+
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+
+        var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+        var dockerfile = await jobsService.GetFileContentAsync(created.Id, "Dockerfile", CancellationToken.None);
+
+        Assert.NotNull(job);
+        Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
+        Assert.Equal("nextjs", job.DetectedStack);
+        Assert.Equal(3000, job.ContainerPort);
+        Assert.NotNull(dockerfile);
+        Assert.Contains("npm run build", dockerfile!.Content);
+        Assert.Contains("COPY --from=build /app ./", dockerfile.Content);
+        Assert.Contains("npm\", \"run\", \"start", dockerfile.Content);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ForMonorepoBackendPath_UsesNodeBackendDetection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "node-monorepo");
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+        var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
+
+        var created = await jobsService.CreateAsync(
+            new CreateJobCommand("node-monorepo-backend", "https://github.com/example/node-monorepo", "main", "backend"),
+            CancellationToken.None);
+
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+
+        var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+        var dockerfile = await jobsService.GetFileContentAsync(created.Id, "Dockerfile", CancellationToken.None);
+
+        Assert.NotNull(job);
+        Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
+        Assert.Equal("backend", job.ProjectPath);
+        Assert.Equal("node-backend", job.DetectedStack);
+        Assert.Equal(3000, job.ContainerPort);
+        Assert.NotNull(dockerfile);
+        Assert.Contains("CMD [\"npm\", \"start\"]", dockerfile!.Content);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ForMonorepoFrontendPath_UsesReactViteDetection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "node-monorepo");
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        await using var context = CreateDbContext();
+        var jobsService = CreateJobsService(context, fakeRuntime);
+        var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
+
+        var created = await jobsService.CreateAsync(
+            new CreateJobCommand("node-monorepo-frontend", "https://github.com/example/node-monorepo", "main", "frontend"),
+            CancellationToken.None);
+
+        await worker.ProcessAsync(created.Id, CancellationToken.None);
+
+        var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+
+        Assert.NotNull(job);
+        Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
+        Assert.Equal("frontend", job.ProjectPath);
+        Assert.Equal("react-vite", job.DetectedStack);
+        Assert.Equal(80, job.ContainerPort);
+    }
+
+    [Fact]
     public async Task RetryAsync_CleansDeploymentState_AndEnqueuesJobAgain()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -106,7 +218,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         await using var context = CreateDbContext();
         var queue = new InMemoryJobQueue();
         var artifactService = CreateArtifactService(context);
-        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime, CreateRepositoryInspectionService());
+        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime, CreateRepositoryInspectionService(), new RepositoryProjectPathResolver());
 
         var job = new Job
         {
@@ -228,7 +340,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         var worker = CreateJobExecutionService(context, new FixtureRepositoryCloner(fixturePath), fakeRuntime);
 
         var created = await jobsService.CreateAsync(
-            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main"),
+            new CreateJobCommand("artisan-bakery-landing-page", "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page", "main", null),
             CancellationToken.None);
 
         await worker.ProcessAsync(created.Id, CancellationToken.None);
@@ -289,7 +401,8 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             new InMemoryJobQueue(),
             CreateArtifactService(context),
             fakeRuntime,
-            CreateRepositoryInspectionService());
+            CreateRepositoryInspectionService(),
+            new RepositoryProjectPathResolver());
     }
 
     private ImagesService CreateImagesService(DockerizerDbContext context)
@@ -308,6 +421,9 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             {
                 WorkspaceRoot = Path.Combine(_tempRoot, "workspace"),
             },
+            Options.Create(new RepositorySecurityOptions()),
+            new RepositoryProjectTypeDetector(),
+            new RepositoryProjectPathResolver(),
             NullLogger<RepositoryInspectionService>.Instance);
     }
 
@@ -320,7 +436,8 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             context,
             new InMemoryJobQueue(),
             gitRepositoryCloner,
-            new RepositoryStackDetector(),
+            new RepositoryStackDetector(new RepositoryProjectTypeDetector()),
+            new RepositoryProjectPathResolver(),
             new ContainerizationTemplateGenerator(NullLogger<ContainerizationTemplateGenerator>.Instance),
             new ContainerPortResolver(),
             new FakeDockerImageBuilder(),

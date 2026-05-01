@@ -52,16 +52,41 @@ public static class DependencyInjection
             StartupPollIntervalMilliseconds = int.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:StartupPollIntervalMilliseconds"], out var startupPollIntervalMilliseconds)
                 ? startupPollIntervalMilliseconds
                 : 1000,
+            ContainerCpuLimit = configuration[$"{DockerRuntimeOptions.SectionName}:ContainerCpuLimit"] ?? "1.0",
+            ContainerMemoryLimit = configuration[$"{DockerRuntimeOptions.SectionName}:ContainerMemoryLimit"] ?? "512m",
+            ContainerPidsLimit = int.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:ContainerPidsLimit"], out var containerPidsLimit)
+                ? containerPidsLimit
+                : 256,
+            DisableContainerNetwork = bool.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:DisableContainerNetwork"], out var disableContainerNetwork) &&
+                disableContainerNetwork,
+        };
+        var repositorySecurityOptions = new RepositorySecurityOptions
+        {
+            AllowedHosts = configuration.GetSection($"{RepositorySecurityOptions.SectionName}:AllowedHosts")
+                .GetChildren()
+                .Select(child => child.Value)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!)
+                .ToArray() is { Length: > 0 } allowedHosts
+                    ? allowedHosts
+                    : ["github.com"],
+            CloneTimeoutSeconds = int.TryParse(configuration[$"{RepositorySecurityOptions.SectionName}:CloneTimeoutSeconds"], out var cloneTimeoutSeconds)
+                ? cloneTimeoutSeconds
+                : 120,
         };
 
         services.AddSingleton(Options.Create(redisOptions));
         services.AddSingleton(artifactOptions);
         services.AddSingleton(Options.Create(dockerRuntimeOptions));
+        services.AddSingleton(Options.Create(repositorySecurityOptions));
         services.AddScoped<JobArtifactService>();
+        services.AddSingleton<RepositoryProjectPathResolver>();
+        services.AddSingleton<RepositoryProjectTypeDetector>();
         services.AddSingleton<IRepositoryBranchProvider, GitRepositoryBranchProvider>();
         services.AddSingleton<RepositoryInspectionService>();
         services.AddSingleton<IDockerContainerRuntime, DockerContainerRuntime>();
         services.AddSingleton<IDockerImageStore, DockerImageStore>();
+        services.AddSingleton<ISystemResourceService, DockerSystemResourceService>();
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IJobQueue, RedisJobQueue>();
         services.AddScoped<IJobsService, JobsService>();

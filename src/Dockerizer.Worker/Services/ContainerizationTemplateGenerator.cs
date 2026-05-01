@@ -47,6 +47,53 @@ public sealed class ContainerizationTemplateGenerator(ILogger<ContainerizationTe
                 EXPOSE 3000
                 CMD ["npm", "start"]
                 """,
+            "node-backend" => """
+                FROM node:22-alpine
+                WORKDIR /app
+
+                COPY package*.json ./
+                RUN npm ci
+
+                COPY . .
+
+                EXPOSE 3000
+                CMD ["npm", "start"]
+                """,
+            "react-vite" => """
+                FROM node:22-alpine AS build
+                WORKDIR /app
+
+                COPY package*.json ./
+                RUN npm ci
+
+                COPY . .
+                RUN npm run build
+
+                FROM nginx:1.27-alpine
+                COPY --from=build /app/dist /usr/share/nginx/html
+
+                EXPOSE 80
+                CMD ["nginx", "-g", "daemon off;"]
+                """,
+            "nextjs" => """
+                FROM node:22-alpine AS build
+                WORKDIR /app
+
+                COPY package*.json ./
+                RUN npm ci
+
+                COPY . .
+                RUN npm run build
+
+                FROM node:22-alpine
+                WORKDIR /app
+                ENV NODE_ENV=production
+
+                COPY --from=build /app ./
+
+                EXPOSE 3000
+                CMD ["npm", "run", "start"]
+                """,
             "python" => """
                 FROM python:3.12-slim
                 WORKDIR /app
@@ -149,6 +196,8 @@ public sealed class ContainerizationTemplateGenerator(ILogger<ContainerizationTe
         return detectedStack switch
         {
             "python" => common + Environment.NewLine + "__pycache__/" + Environment.NewLine + "*.pyc" + Environment.NewLine,
+            "nextjs" => common + Environment.NewLine + ".next/" + Environment.NewLine,
+            "react-vite" => common + Environment.NewLine + "dist/" + Environment.NewLine,
             _ => common + Environment.NewLine
         };
     }

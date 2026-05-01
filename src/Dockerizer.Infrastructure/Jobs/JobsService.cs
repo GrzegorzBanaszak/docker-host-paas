@@ -15,7 +15,8 @@ public sealed class JobsService(
     IJobQueue jobQueue,
     JobArtifactService artifactService,
     IDockerContainerRuntime dockerContainerRuntime,
-    RepositoryInspectionService repositoryInspectionService) : IJobsService
+    RepositoryInspectionService repositoryInspectionService,
+    RepositoryProjectPathResolver repositoryProjectPathResolver) : IJobsService
 {
     public async Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken)
     {
@@ -24,6 +25,7 @@ public sealed class JobsService(
             Name = command.Name.Trim(),
             RepositoryUrl = command.RepositoryUrl.Trim(),
             Branch = string.IsNullOrWhiteSpace(command.Branch) ? null : command.Branch.Trim(),
+            ProjectPath = string.IsNullOrWhiteSpace(command.ProjectPath) ? null : repositoryProjectPathResolver.Normalize(command.ProjectPath),
             Status = JobStatus.Queued,
         };
 
@@ -34,8 +36,8 @@ public sealed class JobsService(
         return MapDetails(job);
     }
 
-    public Task<RepositoryInspectionDto> GetRepositoryInspectionAsync(string repositoryUrl, CancellationToken cancellationToken) =>
-        repositoryInspectionService.InspectAsync(repositoryUrl.Trim(), cancellationToken);
+    public Task<RepositoryInspectionDto> GetRepositoryInspectionAsync(string repositoryUrl, string? projectPath, CancellationToken cancellationToken) =>
+        repositoryInspectionService.InspectAsync(repositoryUrl.Trim(), projectPath, cancellationToken);
 
     public async Task<IReadOnlyCollection<JobListItemDto>> GetAllAsync(CancellationToken cancellationToken)
     {
@@ -53,6 +55,7 @@ public sealed class JobsService(
                 job.Name,
                 job.RepositoryUrl,
                 job.Branch,
+                job.ProjectPath,
                 job.Status.ToString(),
                 job.DetectedStack,
                 job.GeneratedImageTag,
@@ -278,6 +281,7 @@ public sealed class JobsService(
             job.Name,
             job.RepositoryUrl,
             job.Branch,
+            job.ProjectPath,
             job.Status.ToString(),
             job.DetectedStack,
             job.GeneratedImageTag,

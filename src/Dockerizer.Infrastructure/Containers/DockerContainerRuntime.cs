@@ -165,7 +165,7 @@ public sealed class DockerContainerRuntime(
         CancellationToken cancellationToken)
     {
         var arguments =
-            $"run -d --name {containerName} -p {_options.BindingHost}::{containerPort} {imageTag}";
+            $"run -d --name {containerName} {BuildRunSecurityArguments()} -p {_options.BindingHost}::{containerPort} {imageTag}";
 
         var result = await RunDockerCommandAsync(arguments, cancellationToken);
         if (result.ExitCode != 0)
@@ -416,6 +416,39 @@ public sealed class DockerContainerRuntime(
 
         return $"{prefix}-{jobId:N}";
     }
+
+    private string BuildRunSecurityArguments()
+    {
+        var arguments = new List<string>
+        {
+            "--security-opt no-new-privileges",
+            "--label dockerizer.managed=true"
+        };
+
+        if (!string.IsNullOrWhiteSpace(_options.ContainerCpuLimit))
+        {
+            arguments.Add($"--cpus {Quote(_options.ContainerCpuLimit)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.ContainerMemoryLimit))
+        {
+            arguments.Add($"--memory {Quote(_options.ContainerMemoryLimit)}");
+        }
+
+        if (_options.ContainerPidsLimit > 0)
+        {
+            arguments.Add($"--pids-limit {_options.ContainerPidsLimit}");
+        }
+
+        if (_options.DisableContainerNetwork)
+        {
+            arguments.Add("--network none");
+        }
+
+        return string.Join(' ', arguments);
+    }
+
+    private static string Quote(string value) => $"\"{value.Trim()}\"";
 
     private string BuildDeploymentUrl(int publishedPort)
     {

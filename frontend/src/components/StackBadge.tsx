@@ -1,5 +1,8 @@
 const STACK_META: Record<string, { label: string; icon: string }> = {
   nodejs: { label: "Node.js", icon: "deployed_code" },
+  "node-backend": { label: "Node Backend", icon: "dns" },
+  "react-vite": { label: "React + Vite", icon: "web_asset" },
+  nextjs: { label: "Next.js", icon: "dynamic_feed" },
   python: { label: "Python", icon: "smart_toy" },
   php: { label: "PHP", icon: "code_blocks" },
   go: { label: "Go", icon: "route" },

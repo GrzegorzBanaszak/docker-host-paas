@@ -91,9 +91,16 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
               <p className="mt-1 font-mono text-[12px] text-ink">{job.branch || "main"}</p>
             </div>
             <div>
+              <p className="text-xs text-steel">Project Path</p>
+              <p className="mt-1 font-mono text-[12px] text-ink">{job.projectPath || "/"}</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
               <p className="text-xs text-steel">Created</p>
               <p className="mt-1 text-sm text-ink">{new Date(job.createdAtUtc).toLocaleString()}</p>
             </div>
+            <div />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>

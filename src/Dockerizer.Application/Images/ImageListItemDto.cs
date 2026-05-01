@@ -6,6 +6,7 @@ public sealed record ImageListItemDto(
     string JobName,
     string RepositoryUrl,
     string? Branch,
+    string? ProjectPath,
     string Status,
     string? DetectedStack,
     string? ImageTag,

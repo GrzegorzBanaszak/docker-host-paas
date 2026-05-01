@@ -7,7 +7,8 @@ import type {
   JobFileContent,
   JobListItem,
   JobLog,
-  RepositoryInspection
+  RepositoryInspection,
+  SystemResourceSnapshot
 } from "../features/jobs/types";
 
 type RequestOptions = RequestInit & {
@@ -64,8 +65,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
-  getRepositoryInspection: (repositoryUrl: string) =>
-    request<RepositoryInspection>(`/api/jobs/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}`),
+  getRepositoryInspection: (repositoryUrl: string, projectPath?: string) =>
+    request<RepositoryInspection>(
+      `/api/jobs/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}${
+        projectPath ? `&projectPath=${encodeURIComponent(projectPath)}` : ""
+      }`
+    ),
   getJobs: () => request<JobListItem[]>("/api/jobs"),
   getJob: (jobId: string) => request<JobDetails>(`/api/jobs/${jobId}`),
   getLogs: (jobId: string) => request<JobLog | null>(`/api/jobs/${jobId}/logs`, { allowNotFound: true }),
@@ -92,5 +97,6 @@ export const api = {
     request<JobDetails>(`/api/jobs/${jobId}/cancel`, { method: "POST" }),
   deleteImage: async (imageId: string) => {
     await request<null>(`/api/images/${imageId}`, { method: "DELETE" });
-  }
+  },
+  getSystemResources: () => request<SystemResourceSnapshot>("/api/system/resources")
 };

@@ -4,6 +4,7 @@ using Dockerizer.Domain;
 using Dockerizer.Domain.Entities;
 using Dockerizer.Infrastructure.Artifacts;
 using Dockerizer.Infrastructure.Containers;
+using Dockerizer.Infrastructure.Jobs;
 using Dockerizer.Infrastructure.Persistence;
 using Dockerizer.Worker.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public sealed class JobExecutionService(
     IJobQueue jobQueue,
     IGitRepositoryCloner gitRepositoryCloner,
     RepositoryStackDetector repositoryStackDetector,
+    RepositoryProjectPathResolver repositoryProjectPathResolver,
     ContainerizationTemplateGenerator containerizationTemplateGenerator,
     ContainerPortResolver containerPortResolver,
     IDockerImageBuilder dockerImageBuilder,
@@ -76,32 +78,36 @@ public sealed class JobExecutionService(
         try
         {
             var workspacePath = PrepareWorkspace(job.Id);
-            var repositoryPath = Path.Combine(workspacePath, "repository");
+            var repositoryRootPath = Path.Combine(workspacePath, "repository");
+            var projectPathLabel = string.IsNullOrWhiteSpace(job.ProjectPath) ? "/" : job.ProjectPath;
             await jobLogWriter.WriteLineAsync(image.Id, $"Starting job for repository {job.RepositoryUrl}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            await gitRepositoryCloner.CloneAsync(job, repositoryPath, cancellationToken);
+            await gitRepositoryCloner.CloneAsync(job, repositoryRootPath, cancellationToken);
             await jobLogWriter.WriteLineAsync(image.Id, "Repository cloned successfully.", cancellationToken);
 
-            image.SourceCommitSha = await TryResolveCommitShaAsync(repositoryPath, cancellationToken);
+            image.SourceCommitSha = await TryResolveCommitShaAsync(repositoryRootPath, cancellationToken);
             if (!string.IsNullOrWhiteSpace(image.SourceCommitSha))
             {
                 await jobLogWriter.WriteLineAsync(image.Id, $"Resolved commit: {image.SourceCommitSha}.", cancellationToken);
             }
 
+            var projectRootPath = repositoryProjectPathResolver.Resolve(repositoryRootPath, job.ProjectPath);
+            await jobLogWriter.WriteLineAsync(image.Id, $"Using project path: {projectPathLabel}.", cancellationToken);
+
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            image.DetectedStack = await repositoryStackDetector.DetectAsync(repositoryPath, cancellationToken);
+            image.DetectedStack = await repositoryStackDetector.DetectAsync(projectRootPath, cancellationToken);
             job.DetectedStack = image.DetectedStack;
             await jobLogWriter.WriteLineAsync(image.Id, $"Detected stack: {image.DetectedStack}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            await containerizationTemplateGenerator.GenerateAsync(repositoryPath, image.DetectedStack, cancellationToken);
-            await jobArtifactService.CaptureImageGeneratedFilesAsync(image.Id, repositoryPath, cancellationToken);
+            await containerizationTemplateGenerator.GenerateAsync(projectRootPath, image.DetectedStack, cancellationToken);
+            await jobArtifactService.CaptureImageGeneratedFilesAsync(image.Id, projectRootPath, cancellationToken);
             await jobLogWriter.WriteLineAsync(image.Id, "Containerization files generated and stored.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            image.ContainerPort = containerPortResolver.Resolve(repositoryPath, image.DetectedStack);
+            image.ContainerPort = containerPortResolver.Resolve(projectRootPath, image.DetectedStack);
             job.ContainerPort = image.ContainerPort;
             await jobLogWriter.WriteLineAsync(image.Id, $"Resolved container port: {job.ContainerPort}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
-            var buildResult = await dockerImageBuilder.BuildAsync(job, image, repositoryPath, cancellationToken);
+            var buildResult = await dockerImageBuilder.BuildAsync(job, image, projectRootPath, cancellationToken);
             image.ImageTag = buildResult.ImageTag;
             image.ImageId = buildResult.ImageId;
             image.BuiltAtUtc = DateTimeOffset.UtcNow;

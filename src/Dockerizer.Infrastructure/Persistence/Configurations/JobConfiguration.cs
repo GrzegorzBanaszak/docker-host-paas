@@ -23,6 +23,9 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(job => job.Branch)
             .HasMaxLength(255);
 
+        builder.Property(job => job.ProjectPath)
+            .HasMaxLength(1024);
+
         builder.Property(job => job.Status)
             .HasConversion<string>()
             .HasMaxLength(32)

@@ -1,32 +1,51 @@
 using System.Diagnostics;
+using Dockerizer.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Dockerizer.Infrastructure.Jobs;
 
-public sealed class GitRepositoryBranchProvider(ILogger<GitRepositoryBranchProvider> logger) : IRepositoryBranchProvider
+public sealed class GitRepositoryBranchProvider(
+    IOptions<RepositorySecurityOptions> repositorySecurityOptions,
+    ILogger<GitRepositoryBranchProvider> logger) : IRepositoryBranchProvider
 {
+    private readonly RepositorySecurityOptions _repositorySecurityOptions = repositorySecurityOptions.Value;
+
     public async Task<IReadOnlyCollection<string>> GetBranchesAsync(string repositoryUrl, CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo
         {
             FileName = "git",
-            Arguments = $"ls-remote --heads --refs \"{repositoryUrl}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        startInfo.ArgumentList.Add("ls-remote");
+        startInfo.ArgumentList.Add("--heads");
+        startInfo.ArgumentList.Add("--refs");
+        startInfo.ArgumentList.Add(repositoryUrl);
 
         using var process = new Process { StartInfo = startInfo };
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _repositorySecurityOptions.CloneTimeoutSeconds)));
         if (!process.Start())
         {
             throw new InvalidOperationException("Failed to start git ls-remote process.");
         }
 
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            TryKillProcess(process);
+            throw new TimeoutException($"git ls-remote exceeded the configured timeout of {_repositorySecurityOptions.CloneTimeoutSeconds} seconds.");
+        }
 
         var standardOutput = await standardOutputTask;
         var standardError = await standardErrorTask;
@@ -58,4 +77,18 @@ public sealed class GitRepositoryBranchProvider(ILogger<GitRepositoryBranchProvi
             "master" => 1,
             _ => 2,
         };
+
+    private static void TryKillProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+        }
+    }
 }

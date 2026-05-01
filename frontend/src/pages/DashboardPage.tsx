@@ -2,11 +2,14 @@ import { Link } from "react-router-dom";
 import { Panel } from "../components/Panel";
 import { PageHeader } from "../components/PageHeader";
 import { JobList } from "../features/jobs/JobList";
-import { useJobs } from "../features/jobs/hooks";
+import { useJobs, useSystemResources } from "../features/jobs/hooks";
+import type { ContainerResourceUsage } from "../features/jobs/types";
 
 export function DashboardPage() {
   const jobsQuery = useJobs();
+  const resourcesQuery = useSystemResources();
   const jobs = jobsQuery.data ?? [];
+  const resources = resourcesQuery.data;
   const successCount = jobs.filter((job) => job.status === "Succeeded").length;
   const failedCount = jobs.filter((job) => job.status === "Failed").length;
   const runningCount = jobs.filter((job) => job.status === "Running").length;
@@ -54,14 +57,72 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-4">
-        <Panel title="System Status">
-          <div className="flex items-center gap-2 text-sm text-steel">
-            <span className="h-2 w-2 rounded-full bg-mint" />
-            Engine Capacity: 84% Available
+        <Panel title="Resource Guard" description="Live Docker resource usage for managed containers.">
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <ResourceLimit label="CPU" value={resources?.cpuLimit ?? "-"} />
+              <ResourceLimit label="RAM" value={resources?.memoryLimit ?? "-"} />
+              <ResourceLimit label="PIDs" value={resources?.pidsLimit ?? "-"} />
+            </div>
+            {resources?.status === "unavailable" ? (
+              <p className="text-sm font-medium text-rose">{resources.errorMessage ?? "Docker stats unavailable."}</p>
+            ) : resources && resources.containers.length > 0 ? (
+              <div className="space-y-3">
+                {resources.containers.map((container) => (
+                  <ContainerUsageRow key={container.containerId} container={container} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-steel">No managed containers are currently reporting usage.</p>
+            )}
+            <div className="flex items-center gap-2 text-xs text-steel">
+              <span className={`h-2 w-2 rounded-full ${resources?.networkDisabled ? "bg-rose" : "bg-mint"}`} />
+              Runtime network: {resources?.networkDisabled ? "disabled" : "enabled"}
+            </div>
           </div>
         </Panel>
         <div className="xl:col-span-3" />
       </div>
+    </div>
+  );
+}
+
+function ResourceLimit({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-outline bg-surface px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-steel">{label}</p>
+      <p className="mt-1 font-mono text-sm font-semibold text-ink">{value}</p>
+    </div>
+  );
+}
+
+function ContainerUsageRow({ container }: { container: ContainerResourceUsage }) {
+  return (
+    <div className="rounded border border-outline bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-ink">{container.name}</p>
+          <p className="mt-1 font-mono text-[11px] text-steel">{container.containerId}</p>
+        </div>
+        <span className="rounded bg-slate-100 px-2 py-1 font-mono text-[11px] font-semibold text-ink">
+          {container.pids} pids
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <UsageMetric label="CPU" value={container.cpuPercent} />
+        <UsageMetric label="Memory" value={`${container.memoryPercent} · ${container.memoryUsage}`} />
+        <UsageMetric label="Network" value={container.networkIo} />
+        <UsageMetric label="Block I/O" value={container.blockIo} />
+      </div>
+    </div>
+  );
+}
+
+function UsageMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-steel">{label}</p>
+      <p className="mt-1 truncate font-mono text-[11px] font-semibold text-ink">{value || "-"}</p>
     </div>
   );
 }

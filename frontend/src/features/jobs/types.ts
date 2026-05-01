@@ -26,6 +26,7 @@ export type JobListItem = {
   name: string;
   repositoryUrl: string;
   branch?: string | null;
+  projectPath?: string | null;
   status: JobStatus;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
@@ -40,6 +41,7 @@ export type JobDetails = {
   name: string;
   repositoryUrl: string;
   branch?: string | null;
+  projectPath?: string | null;
   status: JobStatus;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
@@ -82,6 +84,7 @@ export type ImageListItem = {
   jobName: string;
   repositoryUrl: string;
   branch?: string | null;
+  projectPath?: string | null;
   status: JobStatus;
   detectedStack?: string | null;
   imageTag?: string | null;
@@ -99,6 +102,7 @@ export type ImageDetails = {
   jobName: string;
   repositoryUrl: string;
   branch?: string | null;
+  projectPath?: string | null;
   jobStatus: JobStatus;
   jobDeploymentUrl?: string | null;
   status: JobStatus;
@@ -119,9 +123,32 @@ export type CreateJobInput = {
   name: string;
   repositoryUrl: string;
   branch?: string;
+  projectPath?: string;
 };
 
 export type RepositoryInspection = {
   branches: string[];
+  projectPath?: string | null;
   detectedStack?: string | null;
+};
+
+export type ContainerResourceUsage = {
+  containerId: string;
+  name: string;
+  cpuPercent: string;
+  memoryUsage: string;
+  memoryPercent: string;
+  networkIo: string;
+  blockIo: string;
+  pids: string;
+};
+
+export type SystemResourceSnapshot = {
+  status: "available" | "unavailable";
+  errorMessage?: string | null;
+  cpuLimit: string;
+  memoryLimit: string;
+  pidsLimit: string;
+  networkDisabled: boolean;
+  containers: ContainerResourceUsage[];
 };

@@ -6,6 +6,7 @@ public sealed record ImageDetailsDto(
     string JobName,
     string RepositoryUrl,
     string? Branch,
+    string? ProjectPath,
     string JobStatus,
     string? JobDeploymentUrl,
     string Status,

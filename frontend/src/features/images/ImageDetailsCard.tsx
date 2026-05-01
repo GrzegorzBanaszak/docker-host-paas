@@ -109,9 +109,16 @@ export function ImageDetailsCard({ image }: { image: ImageDetails }) {
               <p className="mt-1 font-mono text-[12px] text-ink">{image.branch || "main"}</p>
             </div>
             <div>
+              <p className="text-xs text-steel">Project Path</p>
+              <p className="mt-1 font-mono text-[12px] text-ink">{image.projectPath || "/"}</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
               <p className="text-xs text-steel">Job Status</p>
               <p className="mt-1 text-sm text-ink">{image.jobStatus}</p>
             </div>
+            <div />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>

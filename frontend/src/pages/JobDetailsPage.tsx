@@ -2,15 +2,16 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { JobActions } from "../features/jobs/JobActions";
 import { JobDetailsCard } from "../features/jobs/JobDetailsCard";
-import { useJob } from "../features/jobs/hooks";
+import { useJob, useSystemResources } from "../features/jobs/hooks";
 import { JobStatusBadge } from "../features/jobs/JobStatusBadge";
 import { Icon } from "../components/Icon";
 import { JobImageList } from "../features/images/JobImageList";
-import type { ContainerStatus } from "../features/jobs/types";
+import type { ContainerResourceUsage, ContainerStatus, JobDetails, SystemResourceSnapshot } from "../features/jobs/types";
 
 export function JobDetailsPage() {
   const { jobId = "" } = useParams();
   const jobQuery = useJob(jobId);
+  const resourcesQuery = useSystemResources();
 
   if (!jobId) {
     return <EmptyState title="Missing job id" description="Open job details from the jobs list." />;
@@ -86,7 +87,88 @@ export function JobDetailsPage() {
             ))}
           </div>
         </section>
+        <div className="mt-4">
+          <JobResourcePanel job={jobQuery.data} resources={resourcesQuery.data} />
+        </div>
       </div>
+    </div>
+  );
+}
+
+function JobResourcePanel({ job, resources }: { job: JobDetails; resources?: SystemResourceSnapshot }) {
+  const currentUsage = resources?.containers.find((container) => {
+    if (job.containerId && container.containerId.startsWith(job.containerId.slice(0, 12))) {
+      return true;
+    }
+
+    return Boolean(job.containerName && container.name === job.containerName);
+  });
+
+  return (
+    <section className="rounded border border-outline bg-white p-4">
+      <h3 className="mb-4 border-b border-outline pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
+        Resource Guard
+      </h3>
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          <ResourceLimit label="CPU" value={resources?.cpuLimit ?? "-"} />
+          <ResourceLimit label="RAM" value={resources?.memoryLimit ?? "-"} />
+          <ResourceLimit label="PIDs" value={resources?.pidsLimit ?? "-"} />
+        </div>
+
+        {resources?.status === "unavailable" ? (
+          <p className="text-sm font-medium text-rose">{resources.errorMessage ?? "Docker stats unavailable."}</p>
+        ) : currentUsage ? (
+          <ContainerUsageDetails container={currentUsage} />
+        ) : (
+          <p className="text-sm text-steel">No live resource sample is available for this job container.</p>
+        )}
+
+        <div className="flex items-center gap-2 text-xs text-steel">
+          <span className={`h-2 w-2 rounded-full ${resources?.networkDisabled ? "bg-rose" : "bg-mint"}`} />
+          Runtime network: {resources?.networkDisabled ? "disabled" : "enabled"}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ResourceLimit({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-outline bg-surface px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-steel">{label}</p>
+      <p className="mt-1 font-mono text-sm font-semibold text-ink">{value}</p>
+    </div>
+  );
+}
+
+function ContainerUsageDetails({ container }: { container: ContainerResourceUsage }) {
+  return (
+    <div className="rounded border border-outline bg-surface p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-ink">{container.name}</p>
+          <p className="mt-1 font-mono text-[11px] text-steel">{container.containerId}</p>
+        </div>
+        <span className="rounded bg-white px-2 py-1 font-mono text-[11px] font-semibold text-ink">
+          {container.pids} pids
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <UsageMetric label="CPU" value={container.cpuPercent} />
+        <UsageMetric label="Memory" value={`${container.memoryPercent} · ${container.memoryUsage}`} />
+        <UsageMetric label="Network" value={container.networkIo} />
+        <UsageMetric label="Block I/O" value={container.blockIo} />
+      </div>
+    </div>
+  );
+}
+
+function UsageMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-steel">{label}</p>
+      <p className="mt-1 truncate font-mono text-[11px] font-semibold text-ink">{value || "-"}</p>
     </div>
   );
 }

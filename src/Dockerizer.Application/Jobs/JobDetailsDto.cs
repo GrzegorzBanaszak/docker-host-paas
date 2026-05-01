@@ -7,6 +7,7 @@ public sealed record JobDetailsDto(
     string Name,
     string RepositoryUrl,
     string? Branch,
+    string? ProjectPath,
     string Status,
     string? DetectedStack,
     string? GeneratedImageTag,

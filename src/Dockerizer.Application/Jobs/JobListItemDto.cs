@@ -5,6 +5,7 @@ public sealed record JobListItemDto(
     string Name,
     string RepositoryUrl,
     string? Branch,
+    string? ProjectPath,
     string Status,
     string? DetectedStack,
     string? GeneratedImageTag,
