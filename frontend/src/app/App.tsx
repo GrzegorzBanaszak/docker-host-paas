@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { DashboardPage } from "../pages/DashboardPage";
+import { DnsPage } from "../pages/DnsPage";
 import { ImageDetailsPage } from "../pages/ImageDetailsPage";
 import { ImagesPage } from "../pages/ImagesPage";
 import { JobCreatePage } from "../pages/JobCreatePage";
@@ -15,6 +16,7 @@ export function App() {
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/jobs/new" element={<JobCreatePage />} />
         <Route path="/jobs/:jobId" element={<JobDetailsPage />} />
+        <Route path="/dns" element={<DnsPage />} />
         <Route path="/images" element={<ImagesPage />} />
         <Route path="/images/:imageId" element={<ImageDetailsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

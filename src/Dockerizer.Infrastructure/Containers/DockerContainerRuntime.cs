@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Text;
 using Dockerizer.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,9 +9,11 @@ namespace Dockerizer.Infrastructure.Containers;
 
 public sealed class DockerContainerRuntime(
     IOptions<DockerRuntimeOptions> options,
+    IOptions<ApplicationRoutingOptions> routingOptions,
     ILogger<DockerContainerRuntime> logger) : IDockerContainerRuntime
 {
     private readonly DockerRuntimeOptions _options = options.Value;
+    private readonly ApplicationRoutingOptions _routingOptions = routingOptions.Value;
 
     public async Task<ContainerDeploymentResult> RunAsync(Job job, int containerPort, CancellationToken cancellationToken)
     {
@@ -23,6 +26,7 @@ public sealed class DockerContainerRuntime(
         await StopAndRemoveByNameAsync(containerName, CancellationToken.None);
 
         var containerId = await StartContainerAsync(
+            job,
             containerName,
             containerPort,
             job.GeneratedImageTag,
@@ -30,9 +34,15 @@ public sealed class DockerContainerRuntime(
 
         try
         {
-            var publishedPort = await ResolvePublishedPortAsync(containerName, containerPort, cancellationToken);
-            await WaitUntilReachableAsync(containerId, publishedPort, cancellationToken);
-            return BuildDeploymentResult(containerId, containerName, containerPort, publishedPort);
+            if (ShouldPublishHostPort(job))
+            {
+                var publishedPort = await ResolvePublishedPortAsync(containerName, containerPort, cancellationToken);
+                await WaitUntilReachableAsync(containerId, publishedPort, cancellationToken);
+                return BuildDeploymentResult(job, containerId, containerName, containerPort, publishedPort);
+            }
+
+            await WaitUntilRunningAsync(containerId, cancellationToken);
+            return BuildDeploymentResult(job, containerId, containerName, containerPort, null);
         }
         catch
         {
@@ -53,11 +63,21 @@ public sealed class DockerContainerRuntime(
 
         if (inspection.Status == "running")
         {
+            if (ShouldPublishHostPort(job) && !inspection.PublishedPort.HasValue)
+            {
+                return await RunAsync(job, containerPort, cancellationToken);
+            }
+
+            int? publishedPort = ShouldPublishHostPort(job)
+                ? inspection.PublishedPort ?? await ResolvePublishedPortAsync(inspection.ContainerName!, containerPort, cancellationToken)
+                : null;
+
             return BuildDeploymentResult(
+                job,
                 inspection.ContainerId!,
                 inspection.ContainerName!,
                 containerPort,
-                inspection.PublishedPort!.Value);
+                publishedPort);
         }
 
         var result = await RunDockerCommandAsync($"start {inspection.ContainerId}", cancellationToken);
@@ -67,9 +87,20 @@ public sealed class DockerContainerRuntime(
                 $"docker start failed with exit code {result.ExitCode}: {result.StandardError}");
         }
 
-        var publishedPort = inspection.PublishedPort ?? await ResolvePublishedPortAsync(inspection.ContainerName!, containerPort, cancellationToken);
-        await WaitUntilReachableAsync(inspection.ContainerId!, publishedPort, cancellationToken);
-        return BuildDeploymentResult(inspection.ContainerId!, inspection.ContainerName!, containerPort, publishedPort);
+        if (ShouldPublishHostPort(job))
+        {
+            if (!inspection.PublishedPort.HasValue)
+            {
+                return await RunAsync(job, containerPort, cancellationToken);
+            }
+
+            var publishedPort = inspection.PublishedPort.Value;
+            await WaitUntilReachableAsync(inspection.ContainerId!, publishedPort, cancellationToken);
+            return BuildDeploymentResult(job, inspection.ContainerId!, inspection.ContainerName!, containerPort, publishedPort);
+        }
+
+        await WaitUntilRunningAsync(inspection.ContainerId!, cancellationToken);
+        return BuildDeploymentResult(job, inspection.ContainerId!, inspection.ContainerName!, containerPort, null);
     }
 
     public async Task<ContainerDeploymentResult> RestartAsync(Job job, int containerPort, CancellationToken cancellationToken)
@@ -89,9 +120,20 @@ public sealed class DockerContainerRuntime(
                 $"docker restart failed with exit code {result.ExitCode}: {result.StandardError}");
         }
 
-        var publishedPort = inspection.PublishedPort ?? await ResolvePublishedPortAsync(inspection.ContainerName!, containerPort, cancellationToken);
-        await WaitUntilReachableAsync(inspection.ContainerId!, publishedPort, cancellationToken);
-        return BuildDeploymentResult(inspection.ContainerId!, inspection.ContainerName!, containerPort, publishedPort);
+        if (ShouldPublishHostPort(job))
+        {
+            if (!inspection.PublishedPort.HasValue)
+            {
+                return await RunAsync(job, containerPort, cancellationToken);
+            }
+
+            var publishedPort = inspection.PublishedPort.Value;
+            await WaitUntilReachableAsync(inspection.ContainerId!, publishedPort, cancellationToken);
+            return BuildDeploymentResult(job, inspection.ContainerId!, inspection.ContainerName!, containerPort, publishedPort);
+        }
+
+        await WaitUntilRunningAsync(inspection.ContainerId!, cancellationToken);
+        return BuildDeploymentResult(job, inspection.ContainerId!, inspection.ContainerName!, containerPort, null);
     }
 
     public async Task StopAsync(Job job, CancellationToken cancellationToken)
@@ -131,7 +173,11 @@ public sealed class DockerContainerRuntime(
                 job.ContainerId,
                 job.ContainerName,
                 job.PublishedPort,
-                job.PublishedPort.HasValue ? BuildDeploymentUrl(job.PublishedPort.Value) : job.DeploymentUrl);
+                job.PublicAccessEnabled ? job.PublicHostname : null,
+                job.RouteStatus ?? BuildRouteStatus(job),
+                job.PublishedPort.HasValue && ShouldPublishHostPort(job)
+                    ? BuildPortDeploymentUrl(job.PublishedPort.Value)
+                    : job.DeploymentUrl);
         }
 
         return new ContainerRuntimeStatus(
@@ -139,7 +185,9 @@ public sealed class DockerContainerRuntime(
             inspection.ContainerId,
             inspection.ContainerName,
             inspection.PublishedPort,
-            inspection.PublishedPort.HasValue ? BuildDeploymentUrl(inspection.PublishedPort.Value) : null);
+            job.PublicAccessEnabled ? job.PublicHostname ?? TryBuildPublicHostname(job) : null,
+            job.RouteStatus ?? BuildRouteStatus(job),
+            BuildDeploymentUrl(job, inspection.PublishedPort));
     }
 
     public async Task StopAndRemoveAsync(Job job, CancellationToken cancellationToken)
@@ -159,13 +207,16 @@ public sealed class DockerContainerRuntime(
     }
 
     private async Task<string> StartContainerAsync(
+        Job job,
         string containerName,
         int containerPort,
         string imageTag,
         CancellationToken cancellationToken)
     {
+        EnsureRoutingConfiguration(job.PublicAccessEnabled);
+
         var arguments =
-            $"run -d --name {containerName} {BuildRunSecurityArguments()} -p {_options.BindingHost}::{containerPort} {imageTag}";
+            $"run -d --name {containerName} {BuildRunSecurityArguments()} {BuildRunRoutingArguments(job, containerPort)} {imageTag}";
 
         var result = await RunDockerCommandAsync(arguments, cancellationToken);
         if (result.ExitCode != 0)
@@ -292,7 +343,7 @@ public sealed class DockerContainerRuntime(
         }
 
         int? publishedPort = null;
-        if (containerPort.HasValue)
+        if (ShouldPublishHostPort(job) && containerPort.HasValue)
         {
             publishedPort = await TryResolvePublishedPortAsync(parts[1], containerPort.Value, cancellationToken);
         }
@@ -448,9 +499,101 @@ public sealed class DockerContainerRuntime(
         return string.Join(' ', arguments);
     }
 
+    private string BuildRunRoutingArguments(Job job, int containerPort)
+    {
+        if (_routingOptions.UsesPortPublishing)
+        {
+            return $"-p {_options.BindingHost}::{containerPort}";
+        }
+
+        var routerName = $"dockerizer-{job.Id:N}";
+        var serviceName = routerName;
+
+        var arguments = new List<string>
+        {
+            $"--network {Quote(_routingOptions.DockerNetwork)}"
+        };
+
+        if (!job.PublicAccessEnabled)
+        {
+            arguments.Add($"-p {_options.BindingHost}::{containerPort}");
+            return string.Join(' ', arguments);
+        }
+
+        var hostname = BuildPublicHostname(job);
+        arguments.AddRange([
+            "--label traefik.enable=true",
+            $"--label {Quote($"traefik.http.routers.{routerName}.rule=Host(`{hostname}`)")}",
+            $"--label {Quote($"traefik.http.routers.{routerName}.entrypoints=web")}",
+            $"--label {Quote($"traefik.http.routers.{routerName}.service={serviceName}")}",
+            $"--label {Quote($"traefik.http.services.{serviceName}.loadbalancer.server.port={containerPort}")}"
+        ]);
+
+        return string.Join(' ', arguments);
+    }
+
+    private void EnsureRoutingConfiguration(bool requirePublicRoute)
+    {
+        if (_routingOptions.UsesPortPublishing)
+        {
+            return;
+        }
+
+        if (_options.DisableContainerNetwork)
+        {
+            throw new InvalidOperationException("ApplicationRouting:Mode=TunnelWildcard requires DockerRuntime:DisableContainerNetwork=false.");
+        }
+
+        if (requirePublicRoute && string.IsNullOrWhiteSpace(_routingOptions.BaseDomain))
+        {
+            throw new InvalidOperationException("ApplicationRouting:BaseDomain is required when ApplicationRouting:Mode=TunnelWildcard.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_routingOptions.DockerNetwork))
+        {
+            throw new InvalidOperationException("ApplicationRouting:DockerNetwork is required when ApplicationRouting:Mode=TunnelWildcard.");
+        }
+
+        if (!_routingOptions.ReverseProxy.Equals("Traefik", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only Traefik reverse proxy labels are currently supported for tunnel wildcard routing.");
+        }
+    }
+
+    private async Task WaitUntilRunningAsync(string containerId, CancellationToken cancellationToken)
+    {
+        var timeout = TimeSpan.FromSeconds(_options.StartupTimeoutSeconds);
+        var pollInterval = TimeSpan.FromMilliseconds(_options.StartupPollIntervalMilliseconds);
+        var deadlineUtc = DateTimeOffset.UtcNow.Add(timeout);
+
+        while (DateTimeOffset.UtcNow < deadlineUtc)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var status = await GetContainerStatusAsync(containerId, cancellationToken);
+            if (status == "running")
+            {
+                return;
+            }
+
+            if (status is "exited" or "dead")
+            {
+                var logs = await TryGetContainerLogsAsync(containerId, cancellationToken);
+                throw new InvalidOperationException(
+                    $"Container exited before it became reachable through reverse proxy routing. Logs: {logs}");
+            }
+
+            await Task.Delay(pollInterval, cancellationToken);
+        }
+
+        var finalLogs = await TryGetContainerLogsAsync(containerId, cancellationToken);
+        throw new TimeoutException(
+            $"Container did not reach running state within {_options.StartupTimeoutSeconds} seconds. Logs: {finalLogs}");
+    }
+
     private static string Quote(string value) => $"\"{value.Trim()}\"";
 
-    private string BuildDeploymentUrl(int publishedPort)
+    private string BuildPortDeploymentUrl(int publishedPort)
     {
         if (!Uri.TryCreate(_options.PublicBaseUrl, UriKind.Absolute, out var baseUri))
         {
@@ -465,17 +608,120 @@ public sealed class DockerContainerRuntime(
         return builder.Uri.ToString().TrimEnd('/');
     }
 
+    private string? BuildDeploymentUrl(Job job, int? publishedPort)
+    {
+        if (_routingOptions.UsesPortPublishing)
+        {
+            return publishedPort.HasValue ? BuildPortDeploymentUrl(publishedPort.Value) : job.DeploymentUrl;
+        }
+
+        if (!job.PublicAccessEnabled)
+        {
+            return publishedPort.HasValue ? BuildPortDeploymentUrl(publishedPort.Value) : job.DeploymentUrl;
+        }
+
+        var hostname = job.PublicHostname ?? TryBuildPublicHostname(job);
+        return string.IsNullOrWhiteSpace(hostname)
+            ? job.DeploymentUrl
+            : $"{NormalizeScheme(_routingOptions.PublicScheme)}://{hostname}";
+    }
+
+    private string BuildPublicHostname(Job job)
+    {
+        var hostname = TryBuildPublicHostname(job);
+        if (string.IsNullOrWhiteSpace(hostname))
+        {
+            throw new InvalidOperationException("Could not build a public hostname for the container.");
+        }
+
+        return hostname;
+    }
+
+    private string? TryBuildPublicHostname(Job job)
+    {
+        if (_routingOptions.UsesPortPublishing || !job.PublicAccessEnabled || string.IsNullOrWhiteSpace(_routingOptions.BaseDomain))
+        {
+            return job.PublicHostname;
+        }
+
+        var baseDomain = _routingOptions.BaseDomain.Trim().TrimStart('.').TrimEnd('.').ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(baseDomain))
+        {
+            return job.PublicHostname;
+        }
+
+        return $"{BuildSlug(job)}.{baseDomain}";
+    }
+
+    private static string BuildSlug(Job job)
+    {
+        var source = string.IsNullOrWhiteSpace(job.Name)
+            ? "app"
+            : job.Name.Trim().ToLowerInvariant();
+        var builder = new StringBuilder(source.Length);
+        var lastWasHyphen = false;
+
+        foreach (var character in source)
+        {
+            if (character is >= 'a' and <= 'z' or >= '0' and <= '9')
+            {
+                builder.Append(character);
+                lastWasHyphen = false;
+                continue;
+            }
+
+            if (!lastWasHyphen)
+            {
+                builder.Append('-');
+                lastWasHyphen = true;
+            }
+        }
+
+        var slug = builder.ToString().Trim('-');
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            slug = "app";
+        }
+
+        if (slug.Length > 48)
+        {
+            slug = slug[..48].Trim('-');
+        }
+
+        return $"{slug}-{job.Id.ToString("N")[..8]}";
+    }
+
+    private string BuildRouteStatus(Job job) =>
+        _routingOptions.UsesPortPublishing
+            ? "port-published"
+            : job.PublicAccessEnabled
+                ? "reverse-proxy-configured"
+                : "private";
+
+    private bool ShouldPublishHostPort(Job job) =>
+        _routingOptions.UsesPortPublishing || !job.PublicAccessEnabled;
+
+    private static string NormalizeScheme(string scheme)
+    {
+        scheme = string.IsNullOrWhiteSpace(scheme) ? "https" : scheme.Trim().TrimEnd(':', '/', '\\').ToLowerInvariant();
+        return scheme is "http" or "https" ? scheme : "https";
+    }
+
     private ContainerDeploymentResult BuildDeploymentResult(
+        Job job,
         string containerId,
         string containerName,
         int containerPort,
-        int publishedPort) =>
+        int? publishedPort) =>
         new(
             containerId,
             containerName,
             containerPort,
             publishedPort,
-            BuildDeploymentUrl(publishedPort),
+            job.PublicAccessEnabled,
+            TryBuildPublicHostname(job),
+            BuildDeploymentUrl(job, publishedPort),
+            BuildRouteStatus(job),
             DateTimeOffset.UtcNow);
 
     private static async Task<DockerCommandResult> RunDockerCommandAsync(string arguments, CancellationToken cancellationToken)

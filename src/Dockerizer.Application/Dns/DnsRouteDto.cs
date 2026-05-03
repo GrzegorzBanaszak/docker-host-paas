@@ -1,13 +1,9 @@
-namespace Dockerizer.Application.Jobs;
+namespace Dockerizer.Application.Dns;
 
-public sealed record JobListItemDto(
-    Guid Id,
-    string Name,
+public sealed record DnsRouteDto(
+    Guid JobId,
+    string JobName,
     string RepositoryUrl,
-    string? Branch,
-    string? ProjectPath,
-    string Status,
-    string? DetectedStack,
     string? GeneratedImageTag,
     string? ContainerName,
     string? ContainerStatus,

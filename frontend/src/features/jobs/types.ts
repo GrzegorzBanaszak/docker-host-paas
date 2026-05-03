@@ -30,9 +30,15 @@ export type JobListItem = {
   status: JobStatus;
   detectedStack?: string | null;
   generatedImageTag?: string | null;
+  containerName?: string | null;
   containerStatus?: ContainerStatus | null;
+  containerPort?: number | null;
   publishedPort?: number | null;
+  publicAccessEnabled: boolean;
+  publicHostname?: string | null;
+  routeStatus?: string | null;
   deploymentUrl?: string | null;
+  deployedAtUtc?: string | null;
   createdAtUtc: string;
 };
 
@@ -51,6 +57,9 @@ export type JobDetails = {
   containerStatus?: ContainerStatus | null;
   containerPort?: number | null;
   publishedPort?: number | null;
+  publicAccessEnabled: boolean;
+  publicHostname?: string | null;
+  routeStatus?: string | null;
   deploymentUrl?: string | null;
   errorMessage?: string | null;
   currentImageId?: string | null;

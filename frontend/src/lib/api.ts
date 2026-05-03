@@ -1,4 +1,8 @@
 import type {
+  DnsOverview,
+  DnsRoute
+} from "../features/dns/types";
+import type {
   CreateJobInput,
   ImageDetails,
   ImageListItem,
@@ -78,6 +82,8 @@ export const api = {
   getFileContent: (jobId: string, fileId: string) =>
     request<JobFileContent | null>(`/api/jobs/${jobId}/files/${fileId}`, { allowNotFound: true }),
   getImages: () => request<ImageListItem[]>("/api/images"),
+  getDnsOverview: () => request<DnsOverview>("/api/dns/overview"),
+  getDnsRoutes: () => request<DnsRoute[]>("/api/dns/routes"),
   getImage: (imageId: string) => request<ImageDetails>(`/api/images/${imageId}`),
   getImageLogs: (imageId: string) => request<JobLog | null>(`/api/images/${imageId}/logs`, { allowNotFound: true }),
   getImageFiles: (imageId: string) => request<JobFile[]>(`/api/images/${imageId}/files`),
@@ -91,6 +97,10 @@ export const api = {
     request<JobDetails>(`/api/jobs/${jobId}/container/restart`, { method: "POST" }),
   stopContainer: (jobId: string) =>
     request<JobDetails>(`/api/jobs/${jobId}/container/stop`, { method: "POST" }),
+  publishDnsRoute: (jobId: string) =>
+    request<JobDetails>(`/api/dns/routes/${jobId}/publish`, { method: "POST" }),
+  unpublishDnsRoute: (jobId: string) =>
+    request<JobDetails>(`/api/dns/routes/${jobId}/publish`, { method: "DELETE" }),
   retryJob: (jobId: string) =>
     request<JobDetails>(`/api/jobs/${jobId}/retry`, { method: "POST" }),
   cancelJob: (jobId: string) =>

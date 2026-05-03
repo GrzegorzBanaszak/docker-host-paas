@@ -122,6 +122,7 @@ export function useRetryJob(jobId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
     }
   });
 }
@@ -147,6 +148,7 @@ export function useStartContainer(jobId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
     }
   });
 }
@@ -159,6 +161,7 @@ export function useRestartContainer(jobId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
     }
   });
 }
@@ -168,6 +171,32 @@ export function useStopContainer(jobId: string) {
 
   return useMutation({
     mutationFn: () => api.stopContainer(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
+    }
+  });
+}
+
+export function usePublishDnsRoute(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.publishDnsRoute(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
+    }
+  });
+}
+
+export function useUnpublishDnsRoute(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.unpublishDnsRoute(jobId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });

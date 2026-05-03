@@ -54,6 +54,7 @@ export function AppShell({ children }: PropsWithChildren) {
           <nav className="flex flex-1 flex-col gap-1 text-[13px] font-semibold">
             <ShellLink to="/" label="Dashboard" icon="dashboard" active={location.pathname === "/"} />
             <ShellLink to="/jobs" label="Jobs" icon="terminal" active={location.pathname.startsWith("/jobs")} />
+            <ShellLink to="/dns" label="DNS" icon="dns" active={location.pathname.startsWith("/dns")} />
             <ShellLink to="/images" label="Images" icon="layers" active={location.pathname.startsWith("/images")} />
             <ShellGhost label="Clusters" icon="account_tree" />
             <ShellGhost label="Registry" icon="database" />

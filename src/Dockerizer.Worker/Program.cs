@@ -11,7 +11,7 @@ builder.Services.AddSingleton<IGitRepositoryCloner, GitRepositoryCloner>();
 builder.Services.AddSingleton<RepositoryStackDetector>();
 builder.Services.AddSingleton<ContainerizationTemplateGenerator>();
 builder.Services.AddSingleton<ContainerPortResolver>();
-builder.Services.AddSingleton<IDockerImageBuilder, DockerImageBuilder>();
+builder.Services.AddScoped<IDockerImageBuilder, DockerImageBuilder>();
 builder.Services.AddScoped<JobLogWriter>();
 builder.Services.AddHostedService<JobProcessingWorker>();
 

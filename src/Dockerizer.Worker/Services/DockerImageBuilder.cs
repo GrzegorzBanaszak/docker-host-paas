@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using Dockerizer.Domain.Entities;
 using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Worker.Configuration;
@@ -10,6 +11,7 @@ namespace Dockerizer.Worker.Services;
 public sealed class DockerImageBuilder(
     IOptions<WorkerOptions> workerOptions,
     IOptions<DockerRuntimeOptions> dockerRuntimeOptions,
+    JobLogWriter jobLogWriter,
     ILogger<DockerImageBuilder> logger) : IDockerImageBuilder
 {
     private readonly WorkerOptions _workerOptions = workerOptions.Value;
@@ -23,6 +25,7 @@ public sealed class DockerImageBuilder(
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linkedCts.CancelAfter(timeout);
+        using var logWriteLock = new SemaphoreSlim(1, 1);
 
         var startInfo = new ProcessStartInfo
         {
@@ -40,8 +43,20 @@ public sealed class DockerImageBuilder(
             throw new InvalidOperationException("Failed to start docker build process.");
         }
 
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
+        await jobLogWriter.WriteLineAsync(image.Id, $"Starting docker build with limits: CPU={FormatLimit(_dockerRuntimeOptions.ContainerCpuLimit)}, RAM={FormatLimit(_dockerRuntimeOptions.ContainerMemoryLimit)}.", linkedCts.Token);
+
+        var standardOutputTask = CaptureBuildOutputAsync(
+            image.Id,
+            process.StandardOutput,
+            "build",
+            logWriteLock,
+            linkedCts.Token);
+        var standardErrorTask = CaptureBuildOutputAsync(
+            image.Id,
+            process.StandardError,
+            "build",
+            logWriteLock,
+            linkedCts.Token);
 
         try
         {
@@ -88,6 +103,37 @@ public sealed class DockerImageBuilder(
         return $"{prefix}:{job.Id:N}-{image.Id:N}";
     }
 
+    private async Task<string> CaptureBuildOutputAsync(
+        Guid imageId,
+        StreamReader reader,
+        string prefix,
+        SemaphoreSlim logWriteLock,
+        CancellationToken cancellationToken)
+    {
+        var output = new StringBuilder();
+
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            output.AppendLine(line);
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            await logWriteLock.WaitAsync(cancellationToken);
+            try
+            {
+                await jobLogWriter.WriteLineAsync(imageId, $"[{prefix}] {line}", cancellationToken);
+            }
+            finally
+            {
+                logWriteLock.Release();
+            }
+        }
+
+        return output.ToString();
+    }
+
     private string BuildResourceLimitArguments()
     {
         var arguments = new List<string>();
@@ -107,6 +153,9 @@ public sealed class DockerImageBuilder(
     }
 
     private static string Quote(string value) => $"\"{value.Trim()}\"";
+
+    private static string FormatLimit(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "unlimited" : value.Trim();
 
     private static int? TryConvertCpuLimitToQuota(string? cpuLimit)
     {

@@ -7,6 +7,7 @@ using Dockerizer.Infrastructure.Artifacts;
 using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Dockerizer.Infrastructure.Jobs;
 
@@ -15,9 +16,12 @@ public sealed class JobsService(
     IJobQueue jobQueue,
     JobArtifactService artifactService,
     IDockerContainerRuntime dockerContainerRuntime,
+    IOptions<ApplicationRoutingOptions> applicationRoutingOptions,
     RepositoryInspectionService repositoryInspectionService,
     RepositoryProjectPathResolver repositoryProjectPathResolver) : IJobsService
 {
+    private readonly ApplicationRoutingOptions _applicationRoutingOptions = applicationRoutingOptions.Value;
+
     public async Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken)
     {
         var job = new Job
@@ -59,9 +63,15 @@ public sealed class JobsService(
                 job.Status.ToString(),
                 job.DetectedStack,
                 job.GeneratedImageTag,
+                containerStatus.ContainerName ?? job.ContainerName,
                 containerStatus.Status,
+                job.ContainerPort,
                 containerStatus.PublishedPort ?? job.PublishedPort,
+                job.PublicAccessEnabled,
+                containerStatus.PublicHostname ?? job.PublicHostname,
+                containerStatus.RouteStatus ?? job.RouteStatus,
                 containerStatus.DeploymentUrl ?? job.DeploymentUrl,
+                job.DeployedAtUtc,
                 job.CreatedAtUtc));
         }
 
@@ -145,6 +155,62 @@ public sealed class JobsService(
         return MapDetails(job, containerStatus);
     }
 
+    public async Task<JobDetailsDto?> EnablePublicRouteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        EnsureTunnelRoutingIsConfigured();
+
+        var job = await dbContext.Jobs
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (job is null)
+        {
+            return null;
+        }
+
+        EnsureJobCanBeRouted(job);
+
+        job.PublicAccessEnabled = true;
+        job.PublicHostname = BuildPublicHostname(job);
+        job.RouteStatus = null;
+        job.DeploymentUrl = null;
+        job.DnsRecordId = null;
+
+        var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort!.Value, cancellationToken);
+        ApplyDeployment(job, deployment);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
+    }
+
+    public async Task<JobDetailsDto?> DisablePublicRouteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var job = await dbContext.Jobs
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (job is null)
+        {
+            return null;
+        }
+
+        job.PublicAccessEnabled = false;
+        job.PublicHostname = null;
+        job.DeploymentUrl = null;
+        job.RouteStatus = null;
+        job.DnsRecordId = null;
+
+        if (!string.IsNullOrWhiteSpace(job.GeneratedImageTag) && job.ContainerPort.HasValue)
+        {
+            var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort.Value, cancellationToken);
+            ApplyDeployment(job, deployment);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
+        return MapDetails(job, containerStatus);
+    }
+
     public Task<JobDetailsDto?> RebuildAsync(Guid id, CancellationToken cancellationToken) =>
         RetryAsync(id, cancellationToken);
 
@@ -173,7 +239,10 @@ public sealed class JobsService(
         job.ContainerName = null;
         job.ContainerPort = null;
         job.PublishedPort = null;
+        job.PublicHostname = null;
         job.DeploymentUrl = null;
+        job.RouteStatus = null;
+        job.DnsRecordId = null;
         job.ErrorMessage = null;
         job.StartedAtUtc = null;
         job.DeployedAtUtc = null;
@@ -208,7 +277,10 @@ public sealed class JobsService(
         job.ContainerName = null;
         job.ContainerPort = null;
         job.PublishedPort = null;
+        job.PublicHostname = null;
         job.DeploymentUrl = null;
+        job.RouteStatus = null;
+        job.DnsRecordId = null;
         job.DeployedAtUtc = null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -271,7 +343,10 @@ public sealed class JobsService(
         job.ContainerName = deployment.ContainerName;
         job.ContainerPort = deployment.ContainerPort;
         job.PublishedPort = deployment.PublishedPort;
+        job.PublicAccessEnabled = deployment.PublicAccessEnabled;
+        job.PublicHostname = deployment.PublicHostname;
         job.DeploymentUrl = deployment.DeploymentUrl;
+        job.RouteStatus = deployment.RouteStatus;
         job.DeployedAtUtc = deployment.DeployedAtUtc;
     }
 
@@ -291,6 +366,9 @@ public sealed class JobsService(
             containerStatus?.Status,
             job.ContainerPort,
             job.PublishedPort,
+            job.PublicAccessEnabled,
+            containerStatus?.PublicHostname ?? job.PublicHostname,
+            containerStatus?.RouteStatus ?? job.RouteStatus,
             containerStatus?.DeploymentUrl ?? job.DeploymentUrl,
             job.ErrorMessage,
             job.CurrentImageId,
@@ -306,6 +384,76 @@ public sealed class JobsService(
             job.StartedAtUtc,
             job.DeployedAtUtc,
             job.CompletedAtUtc);
+
+    private void EnsureTunnelRoutingIsConfigured()
+    {
+        if (!_applicationRoutingOptions.UsesTunnelWildcard)
+        {
+            throw new InvalidOperationException("Public DNS routes require ApplicationRouting:Mode=TunnelWildcard.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_applicationRoutingOptions.BaseDomain))
+        {
+            throw new InvalidOperationException("ApplicationRouting:BaseDomain is required before publishing DNS routes.");
+        }
+    }
+
+    private static void EnsureJobCanBeRouted(Job job)
+    {
+        if (string.IsNullOrWhiteSpace(job.GeneratedImageTag))
+        {
+            throw new InvalidOperationException("Job must have a built image before public access can be enabled.");
+        }
+
+        if (!job.ContainerPort.HasValue)
+        {
+            throw new InvalidOperationException("Job must have a resolved container port before public access can be enabled.");
+        }
+    }
+
+    private string BuildPublicHostname(Job job)
+    {
+        var baseDomain = _applicationRoutingOptions.BaseDomain.Trim().TrimStart('.').TrimEnd('.').ToLowerInvariant();
+        return $"{BuildSlug(job)}.{baseDomain}";
+    }
+
+    private static string BuildSlug(Job job)
+    {
+        var source = string.IsNullOrWhiteSpace(job.Name)
+            ? "app"
+            : job.Name.Trim().ToLowerInvariant();
+        var builder = new System.Text.StringBuilder(source.Length);
+        var lastWasHyphen = false;
+
+        foreach (var character in source)
+        {
+            if (character is >= 'a' and <= 'z' or >= '0' and <= '9')
+            {
+                builder.Append(character);
+                lastWasHyphen = false;
+                continue;
+            }
+
+            if (!lastWasHyphen)
+            {
+                builder.Append('-');
+                lastWasHyphen = true;
+            }
+        }
+
+        var slug = builder.ToString().Trim('-');
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            slug = "app";
+        }
+
+        if (slug.Length > 48)
+        {
+            slug = slug[..48].Trim('-');
+        }
+
+        return $"{slug}-{job.Id.ToString("N")[..8]}";
+    }
 
     private static JobImageSummaryDto MapImageSummary(JobImage image, Guid? currentImageId) =>
         new(

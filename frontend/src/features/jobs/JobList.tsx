@@ -67,8 +67,9 @@ export function JobList({ jobs, mode = "full" }: { jobs: JobListItem[]; mode?: "
                         <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                       </a>
                       <span className="font-mono text-[11px] text-steel">
-                        {job.publishedPort ? `:${job.publishedPort}` : job.deploymentUrl}
+                        {job.publicHostname || (job.publishedPort ? `:${job.publishedPort}` : job.deploymentUrl)}
                       </span>
+                      {job.routeStatus ? <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-slate-400">{job.routeStatus}</span> : null}
                     </div>
                   ) : (
                     <span className="text-[12px] text-slate-400">pending</span>

@@ -70,6 +70,36 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
             </div>
           </div>
           <div>
+            <p className="text-xs text-steel">Access</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${
+                  job.publicAccessEnabled
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-slate-50 text-slate-700"
+                }`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+                {job.publicAccessEnabled ? "Public" : "Private"}
+              </span>
+              {job.deploymentUrl ? (
+                <a className="font-mono text-[12px] text-secondary underline-offset-2 hover:underline" href={job.deploymentUrl} target="_blank" rel="noreferrer">
+                  {job.deploymentUrl}
+                </a>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-steel">Public Hostname</p>
+              <p className="mt-1 break-all font-mono text-[12px] text-ink">{job.publicHostname || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-steel">Route Status</p>
+              <p className="mt-1 font-mono text-[12px] text-ink">{job.routeStatus || "-"}</p>
+            </div>
+          </div>
+          <div>
             <p className="text-xs text-steel">Status</p>
             <div className="mt-2">
               <JobStatusBadge status={job.status} />
@@ -110,7 +140,7 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
             <div>
               <p className="text-xs text-steel">Ports</p>
               <p className="mt-1 font-mono text-[12px] text-ink">
-                {job.publishedPort && job.containerPort ? `${job.publishedPort} -> ${job.containerPort}` : "-"}
+                {job.publishedPort && job.containerPort ? `${job.publishedPort} -> ${job.containerPort}` : job.containerPort ? `proxy -> ${job.containerPort}` : "-"}
               </p>
             </div>
           </div>

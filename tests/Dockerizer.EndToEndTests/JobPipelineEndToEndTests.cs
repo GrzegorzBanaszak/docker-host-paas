@@ -218,7 +218,14 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         await using var context = CreateDbContext();
         var queue = new InMemoryJobQueue();
         var artifactService = CreateArtifactService(context);
-        var jobsService = new JobsService(context, queue, artifactService, fakeRuntime, CreateRepositoryInspectionService(), new RepositoryProjectPathResolver());
+        var jobsService = new JobsService(
+            context,
+            queue,
+            artifactService,
+            fakeRuntime,
+            Options.Create(new ApplicationRoutingOptions()),
+            CreateRepositoryInspectionService(),
+            new RepositoryProjectPathResolver());
 
         var job = new Job
         {
@@ -401,6 +408,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             new InMemoryJobQueue(),
             CreateArtifactService(context),
             fakeRuntime,
+            Options.Create(new ApplicationRoutingOptions()),
             CreateRepositoryInspectionService(),
             new RepositoryProjectPathResolver());
     }
@@ -545,7 +553,10 @@ public sealed class JobPipelineEndToEndTests : IDisposable
                 $"dockerizer-job-{job.Id:N}",
                 containerPort,
                 45000,
+                job.PublicAccessEnabled,
+                null,
                 "http://localhost:45000",
+                "port-published",
                 DateTimeOffset.UtcNow));
         }
 
@@ -560,7 +571,10 @@ public sealed class JobPipelineEndToEndTests : IDisposable
                 job.ContainerName ?? $"dockerizer-job-{job.Id:N}",
                 containerPort,
                 job.PublishedPort ?? 45000,
+                job.PublicAccessEnabled,
+                job.PublicHostname,
                 job.DeploymentUrl ?? "http://localhost:45000",
+                job.RouteStatus ?? "port-published",
                 DateTimeOffset.UtcNow));
         }
 
@@ -575,7 +589,10 @@ public sealed class JobPipelineEndToEndTests : IDisposable
                 job.ContainerName ?? $"dockerizer-job-{job.Id:N}",
                 containerPort,
                 job.PublishedPort ?? 45000,
+                job.PublicAccessEnabled,
+                job.PublicHostname,
                 job.DeploymentUrl ?? "http://localhost:45000",
+                job.RouteStatus ?? "port-published",
                 DateTimeOffset.UtcNow));
         }
 
@@ -601,6 +618,8 @@ public sealed class JobPipelineEndToEndTests : IDisposable
                 job.ContainerId,
                 job.ContainerName,
                 job.PublishedPort,
+                job.PublicHostname,
+                job.RouteStatus,
                 job.DeploymentUrl));
         }
 

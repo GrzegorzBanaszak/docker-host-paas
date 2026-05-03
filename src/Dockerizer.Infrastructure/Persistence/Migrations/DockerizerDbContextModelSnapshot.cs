@@ -99,6 +99,10 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("DnsRecordId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
@@ -120,6 +124,13 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<bool>("PublicAccessEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("PublicHostname")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<int?>("PublishedPort")
                         .HasColumnType("integer");
 
@@ -127,6 +138,10 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("RouteStatus")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTimeOffset?>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -141,6 +156,10 @@ namespace Dockerizer.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedAtUtc");
 
                     b.HasIndex("CurrentImageId");
+
+                    b.HasIndex("PublicAccessEnabled");
+
+                    b.HasIndex("PublicHostname");
 
                     b.HasIndex("Status");
 

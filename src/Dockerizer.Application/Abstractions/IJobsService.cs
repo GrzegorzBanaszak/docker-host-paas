@@ -11,6 +11,8 @@ public interface IJobsService
     Task<JobDetailsDto?> StartContainerAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> RestartContainerAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> StopContainerAsync(Guid id, CancellationToken cancellationToken);
+    Task<JobDetailsDto?> EnablePublicRouteAsync(Guid id, CancellationToken cancellationToken);
+    Task<JobDetailsDto?> DisablePublicRouteAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> RebuildAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> RetryAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> CancelAsync(Guid id, CancellationToken cancellationToken);

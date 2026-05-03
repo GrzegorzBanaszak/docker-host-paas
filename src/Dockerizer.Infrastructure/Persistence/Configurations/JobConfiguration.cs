@@ -46,8 +46,20 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(job => job.ContainerName)
             .HasMaxLength(128);
 
+        builder.Property(job => job.PublicAccessEnabled)
+            .IsRequired();
+
+        builder.Property(job => job.PublicHostname)
+            .HasMaxLength(255);
+
         builder.Property(job => job.DeploymentUrl)
             .HasMaxLength(512);
+
+        builder.Property(job => job.RouteStatus)
+            .HasMaxLength(64);
+
+        builder.Property(job => job.DnsRecordId)
+            .HasMaxLength(128);
 
         builder.Property(job => job.ErrorMessage)
             .HasMaxLength(4000);
@@ -72,6 +84,8 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
 
         builder.HasIndex(job => job.CreatedAtUtc);
         builder.HasIndex(job => job.CurrentImageId);
+        builder.HasIndex(job => job.PublicAccessEnabled);
+        builder.HasIndex(job => job.PublicHostname);
         builder.HasIndex(job => job.Status);
     }
 }

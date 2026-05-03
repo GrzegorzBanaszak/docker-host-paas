@@ -5,4 +5,6 @@ public sealed record ContainerRuntimeStatus(
     string? ContainerId,
     string? ContainerName,
     int? PublishedPort,
+    string? PublicHostname,
+    string? RouteStatus,
     string? DeploymentUrl);

@@ -59,7 +59,10 @@ public sealed class JobExecutionService(
         job.ContainerName = null;
         job.ContainerPort = null;
         job.PublishedPort = null;
+        job.PublicHostname = null;
         job.DeploymentUrl = null;
+        job.RouteStatus = null;
+        job.DnsRecordId = null;
         job.DeployedAtUtc = null;
         job.CurrentImageId = null;
 
@@ -72,6 +75,8 @@ public sealed class JobExecutionService(
         };
 
         dbContext.JobImages.Add(image);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        job.CurrentImageId = image.Id;
         await dbContext.SaveChangesAsync(cancellationToken);
         await jobArtifactService.ResetExecutionArtifactsAsync(job.Id, cancellationToken);
 
@@ -119,14 +124,15 @@ public sealed class JobExecutionService(
             job.ContainerId = deployment.ContainerId;
             job.ContainerName = deployment.ContainerName;
             job.PublishedPort = deployment.PublishedPort;
+            job.PublicHostname = deployment.PublicHostname;
             job.DeploymentUrl = deployment.DeploymentUrl;
+            job.RouteStatus = deployment.RouteStatus;
             job.DeployedAtUtc = deployment.DeployedAtUtc;
             await jobLogWriter.WriteLineAsync(image.Id, $"Container deployed: {job.ContainerName} at {job.DeploymentUrl}.", cancellationToken);
             await ThrowIfCanceledAsync(job.Id, cancellationToken);
 
             job.Status = JobStatus.Succeeded;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
-            job.CurrentImageId = image.Id;
             image.Status = JobStatus.Succeeded;
             image.CompletedAtUtc = job.CompletedAtUtc;
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -149,7 +155,10 @@ public sealed class JobExecutionService(
             job.ContainerId = null;
             job.ContainerName = null;
             job.PublishedPort = null;
+            job.PublicHostname = null;
             job.DeploymentUrl = null;
+            job.RouteStatus = null;
+            job.DnsRecordId = null;
             job.DeployedAtUtc = null;
             image.Status = JobStatus.Canceled;
             image.ErrorMessage = "Job was canceled.";
@@ -164,7 +173,10 @@ public sealed class JobExecutionService(
             job.ContainerId = null;
             job.ContainerName = null;
             job.PublishedPort = null;
+            job.PublicHostname = null;
             job.DeploymentUrl = null;
+            job.RouteStatus = null;
+            job.DnsRecordId = null;
             job.DeployedAtUtc = null;
 
             job.Status = JobStatus.Failed;

@@ -2,15 +2,17 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { JobActions } from "../features/jobs/JobActions";
 import { JobDetailsCard } from "../features/jobs/JobDetailsCard";
-import { useJob, useSystemResources } from "../features/jobs/hooks";
+import { useJob, useJobLogs, useSystemResources } from "../features/jobs/hooks";
 import { JobStatusBadge } from "../features/jobs/JobStatusBadge";
 import { Icon } from "../components/Icon";
 import { JobImageList } from "../features/images/JobImageList";
+import { LogViewer } from "../features/logs/LogViewer";
 import type { ContainerResourceUsage, ContainerStatus, JobDetails, SystemResourceSnapshot } from "../features/jobs/types";
 
 export function JobDetailsPage() {
   const { jobId = "" } = useParams();
   const jobQuery = useJob(jobId);
+  const logsQuery = useJobLogs(jobId);
   const resourcesQuery = useSystemResources();
 
   if (!jobId) {
@@ -59,7 +61,12 @@ export function JobDetailsPage() {
         <JobDetailsCard job={jobQuery.data} />
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 space-y-4">
+        {logsQuery.isError ? (
+          <EmptyState title="Build logs unavailable" description={(logsQuery.error as Error).message || "Could not load current build logs."} />
+        ) : (
+          <LogViewer content={logsQuery.data?.content} />
+        )}
         <section className="rounded border border-outline bg-white p-4">
           <h3 className="mb-4 border-b border-outline pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-steel">
             Image History

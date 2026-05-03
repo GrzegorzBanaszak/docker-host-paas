@@ -1,6 +1,7 @@
 using Dockerizer.Application.Abstractions;
 using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Configuration;
+using Dockerizer.Infrastructure.Dns;
 using Dockerizer.Infrastructure.Jobs;
 using Dockerizer.Infrastructure.Artifacts;
 using Dockerizer.Infrastructure.Images;
@@ -60,6 +61,14 @@ public static class DependencyInjection
             DisableContainerNetwork = bool.TryParse(configuration[$"{DockerRuntimeOptions.SectionName}:DisableContainerNetwork"], out var disableContainerNetwork) &&
                 disableContainerNetwork,
         };
+        var applicationRoutingOptions = new ApplicationRoutingOptions
+        {
+            Mode = configuration[$"{ApplicationRoutingOptions.SectionName}:Mode"] ?? "Port",
+            PublicScheme = configuration[$"{ApplicationRoutingOptions.SectionName}:PublicScheme"] ?? "https",
+            BaseDomain = configuration[$"{ApplicationRoutingOptions.SectionName}:BaseDomain"] ?? string.Empty,
+            DockerNetwork = configuration[$"{ApplicationRoutingOptions.SectionName}:DockerNetwork"] ?? "dockerizer-public",
+            ReverseProxy = configuration[$"{ApplicationRoutingOptions.SectionName}:ReverseProxy"] ?? "Traefik",
+        };
         var repositorySecurityOptions = new RepositorySecurityOptions
         {
             AllowedHosts = configuration.GetSection($"{RepositorySecurityOptions.SectionName}:AllowedHosts")
@@ -78,6 +87,7 @@ public static class DependencyInjection
         services.AddSingleton(Options.Create(redisOptions));
         services.AddSingleton(artifactOptions);
         services.AddSingleton(Options.Create(dockerRuntimeOptions));
+        services.AddSingleton(Options.Create(applicationRoutingOptions));
         services.AddSingleton(Options.Create(repositorySecurityOptions));
         services.AddScoped<JobArtifactService>();
         services.AddSingleton<RepositoryProjectPathResolver>();
@@ -89,6 +99,7 @@ public static class DependencyInjection
         services.AddSingleton<ISystemResourceService, DockerSystemResourceService>();
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IJobQueue, RedisJobQueue>();
+        services.AddScoped<IDnsService, DnsService>();
         services.AddScoped<IJobsService, JobsService>();
         services.AddScoped<IImagesService, ImagesService>();
 

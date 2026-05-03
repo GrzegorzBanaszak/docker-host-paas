@@ -15,7 +15,11 @@ public sealed class Job
     public string? ContainerName { get; set; }
     public int? ContainerPort { get; set; }
     public int? PublishedPort { get; set; }
+    public bool PublicAccessEnabled { get; set; }
+    public string? PublicHostname { get; set; }
     public string? DeploymentUrl { get; set; }
+    public string? RouteStatus { get; set; }
+    public string? DnsRecordId { get; set; }
     public string? ErrorMessage { get; set; }
     public Guid? CurrentImageId { get; set; }
     public JobImage? CurrentImage { get; set; }
