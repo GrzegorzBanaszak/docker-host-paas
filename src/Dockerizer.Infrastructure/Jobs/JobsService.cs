@@ -16,6 +16,7 @@ public sealed class JobsService(
     IJobQueue jobQueue,
     JobArtifactService artifactService,
     IDockerContainerRuntime dockerContainerRuntime,
+    IDockerImageStore dockerImageStore,
     IOptions<ApplicationRoutingOptions> applicationRoutingOptions,
     RepositoryInspectionService repositoryInspectionService,
     RepositoryProjectPathResolver repositoryProjectPathResolver) : IJobsService
@@ -289,6 +290,33 @@ public sealed class JobsService(
         return MapDetails(job, containerStatus);
     }
 
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var job = await dbContext.Jobs
+            .Include(x => x.Images)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (job is null)
+        {
+            return false;
+        }
+
+        await dockerContainerRuntime.StopAndRemoveAsync(job, cancellationToken);
+
+        foreach (var image in BuildImageRemovalTargets(job))
+        {
+            await dockerImageStore.RemoveAsync(image.ImageId, image.ImageTag, cancellationToken);
+        }
+
+        await artifactService.CleanupWorkspaceAsync(job.Id, cancellationToken);
+
+        job.CurrentImageId = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        dbContext.Jobs.Remove(job);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public Task<JobLogDto?> GetLogsAsync(Guid id, CancellationToken cancellationToken) =>
         GetCurrentImageLogsAsync(id, cancellationToken);
 
@@ -467,4 +495,34 @@ public sealed class JobsService(
             image.CreatedAtUtc,
             image.CompletedAtUtc,
             currentImageId == image.Id);
+
+    private static IReadOnlyCollection<(string? ImageId, string? ImageTag)> BuildImageRemovalTargets(Job job)
+    {
+        var targets = new List<(string? ImageId, string? ImageTag)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var image in job.Images)
+        {
+            AddTarget(image.ImageId, image.ImageTag);
+        }
+
+        AddTarget(job.ImageId, job.GeneratedImageTag);
+        return targets;
+
+        void AddTarget(string? imageId, string? imageTag)
+        {
+            var normalizedImageId = string.IsNullOrWhiteSpace(imageId) ? null : imageId.Trim();
+            var normalizedImageTag = string.IsNullOrWhiteSpace(imageTag) ? null : imageTag.Trim();
+            if (normalizedImageId is null && normalizedImageTag is null)
+            {
+                return;
+            }
+
+            var key = $"{normalizedImageId}|{normalizedImageTag}";
+            if (seen.Add(key))
+            {
+                targets.Add((normalizedImageId, normalizedImageTag));
+            }
+        }
+    }
 }

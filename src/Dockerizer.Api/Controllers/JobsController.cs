@@ -159,6 +159,13 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
         return job is null ? NotFound() : Ok(job);
     }
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var deleted = await jobsService.DeleteAsync(id, cancellationToken);
+        return deleted ? NoContent() : NotFound();
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateJobApiRequest request, CancellationToken cancellationToken)
     {

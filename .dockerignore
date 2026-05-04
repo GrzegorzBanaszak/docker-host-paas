@@ -1,0 +1,14 @@
+.git
+.gitignore
+.worker-data
+.vs
+.vscode
+**/bin
+**/obj
+**/dist
+**/node_modules
+**/*.user
+**/*.suo
+infra/.env
+infra/**/.terraform
+infra/**/terraform.tfstate*

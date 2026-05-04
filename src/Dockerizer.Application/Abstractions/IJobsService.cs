@@ -16,6 +16,7 @@ public interface IJobsService
     Task<JobDetailsDto?> RebuildAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> RetryAsync(Guid id, CancellationToken cancellationToken);
     Task<JobDetailsDto?> CancelAsync(Guid id, CancellationToken cancellationToken);
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
     Task<JobLogDto?> GetLogsAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<JobFileDto>> GetFilesAsync(Guid id, CancellationToken cancellationToken);
     Task<JobFileContentDto?> GetFileContentAsync(Guid id, string fileId, CancellationToken cancellationToken);

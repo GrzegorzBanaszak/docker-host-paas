@@ -217,6 +217,20 @@ export function useCancelJob(jobId: string) {
   });
 }
 
+export function useDeleteJob(jobId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.deleteJob(jobId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["images"] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
+      void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+    }
+  });
+}
+
 export function useDeleteImage(imageId: string) {
   const queryClient = useQueryClient();
 

@@ -1,21 +1,8 @@
-import { useState } from "react";
 import type { JobDetails } from "./types";
 import { JobStatusBadge } from "./JobStatusBadge";
 import { StackBadge } from "../../components/StackBadge";
 
 export function JobDetailsCard({ job }: { job: JobDetails }) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopyContainerId() {
-    if (!job.containerId || !navigator.clipboard) {
-      return;
-    }
-
-    await navigator.clipboard.writeText(job.containerId);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
-  }
-
   return (
     <div className="grid gap-3">
       <div className="rounded border border-outline bg-surface p-4">
@@ -58,57 +45,9 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
             </div>
           </div>
           <div>
-            <p className="text-xs text-steel">Deployment URL</p>
-            <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink">
-              {job.deploymentUrl ? (
-                <a className="text-secondary underline-offset-2 hover:underline" href={job.deploymentUrl} target="_blank" rel="noreferrer">
-                  {job.deploymentUrl}
-                </a>
-              ) : (
-                "-"
-              )}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-steel">Access</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${
-                  job.publicAccessEnabled
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700"
-                }`}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-                {job.publicAccessEnabled ? "Public" : "Private"}
-              </span>
-              {job.deploymentUrl ? (
-                <a className="font-mono text-[12px] text-secondary underline-offset-2 hover:underline" href={job.deploymentUrl} target="_blank" rel="noreferrer">
-                  {job.deploymentUrl}
-                </a>
-              ) : null}
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-xs text-steel">Public Hostname</p>
-              <p className="mt-1 break-all font-mono text-[12px] text-ink">{job.publicHostname || "-"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-steel">Route Status</p>
-              <p className="mt-1 font-mono text-[12px] text-ink">{job.routeStatus || "-"}</p>
-            </div>
-          </div>
-          <div>
             <p className="text-xs text-steel">Status</p>
             <div className="mt-2">
               <JobStatusBadge status={job.status} />
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-steel">Container Status</p>
-            <div className="mt-2">
-              <ContainerStatusBadge status={job.containerStatus} />
             </div>
           </div>
           <div>
@@ -134,25 +73,10 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-steel">Container</p>
-              <p className="mt-1 break-all font-mono text-[12px] text-ink">{job.containerName || "-"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-steel">Ports</p>
-              <p className="mt-1 font-mono text-[12px] text-ink">
-                {job.publishedPort && job.containerPort ? `${job.publishedPort} -> ${job.containerPort}` : job.containerPort ? `proxy -> ${job.containerPort}` : "-"}
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
               <p className="text-xs text-steel">Started</p>
               <p className="mt-1 text-sm text-ink">{job.startedAtUtc ? new Date(job.startedAtUtc).toLocaleString() : "-"}</p>
             </div>
-            <div>
-              <p className="text-xs text-steel">Deployed</p>
-              <p className="mt-1 text-sm text-ink">{job.deployedAtUtc ? new Date(job.deployedAtUtc).toLocaleString() : "-"}</p>
-            </div>
+            <div />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -160,24 +84,6 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
               <p className="mt-1 text-sm text-ink">{job.completedAtUtc ? new Date(job.completedAtUtc).toLocaleString() : "-"}</p>
             </div>
             <div />
-          </div>
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-steel">Container ID</p>
-              {job.containerId ? (
-                <button
-                  type="button"
-                  onClick={() => void handleCopyContainerId()}
-                  className="inline-flex items-center gap-1 rounded-sm border border-outline bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-steel transition hover:bg-slate-50 hover:text-ink"
-                >
-                  <span className="material-symbols-outlined text-[14px]">{copied ? "check" : "content_copy"}</span>
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              ) : null}
-            </div>
-            <div className="mt-1 rounded border border-outline bg-variant px-2 py-1 font-mono text-[11px] text-ink" title={job.containerId || "-"}>
-              {job.containerId ? abbreviateMiddle(job.containerId, 14, 14) : "-"}
-            </div>
           </div>
         </div>
       </div>
@@ -197,26 +103,4 @@ function abbreviateMiddle(value: string, startLength: number, endLength: number)
   }
 
   return `${value.slice(0, startLength)}...${value.slice(-endLength)}`;
-}
-
-function ContainerStatusBadge({ status }: { status?: string | null }) {
-  const normalized = status ?? "not_found";
-  const className =
-    normalized === "running"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : normalized === "restarting"
-        ? "border-sky-200 bg-sky-50 text-sky-700"
-        : normalized === "paused"
-          ? "border-amber-200 bg-amber-50 text-amber-700"
-          : normalized === "created"
-            ? "border-slate-200 bg-slate-50 text-slate-700"
-            : normalized === "exited" || normalized === "dead"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : "border-outline bg-surface-low text-steel";
-
-  return (
-    <span className={`inline-flex items-center rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${className}`}>
-      {normalized.replace("_", " ")}
-    </span>
-  );
 }

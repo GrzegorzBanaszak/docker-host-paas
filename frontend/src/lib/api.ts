@@ -105,6 +105,9 @@ export const api = {
     request<JobDetails>(`/api/jobs/${jobId}/retry`, { method: "POST" }),
   cancelJob: (jobId: string) =>
     request<JobDetails>(`/api/jobs/${jobId}/cancel`, { method: "POST" }),
+  deleteJob: async (jobId: string) => {
+    await request<null>(`/api/jobs/${jobId}`, { method: "DELETE" });
+  },
   deleteImage: async (imageId: string) => {
     await request<null>(`/api/images/${imageId}`, { method: "DELETE" });
   },

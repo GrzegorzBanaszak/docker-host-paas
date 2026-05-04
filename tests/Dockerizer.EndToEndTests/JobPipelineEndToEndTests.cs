@@ -223,6 +223,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             queue,
             artifactService,
             fakeRuntime,
+            new FakeDockerImageStore(),
             Options.Create(new ApplicationRoutingOptions()),
             CreateRepositoryInspectionService(),
             new RepositoryProjectPathResolver());
@@ -259,6 +260,72 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         Assert.Null(retried.DeploymentUrl);
         Assert.Single(fakeRuntime.StopRequests);
         Assert.Equal(job.Id, Assert.Single(queue.EnqueuedJobIds));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesJobAndAssignedResources()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var fakeRuntime = new FakeDockerContainerRuntime();
+        var fakeImageStore = new FakeDockerImageStore();
+        await using var context = CreateDbContext();
+        var artifactService = CreateArtifactService(context);
+        var jobsService = new JobsService(
+            context,
+            new InMemoryJobQueue(),
+            artifactService,
+            fakeRuntime,
+            fakeImageStore,
+            Options.Create(new ApplicationRoutingOptions()),
+            CreateRepositoryInspectionService(),
+            new RepositoryProjectPathResolver());
+
+        var job = new Job
+        {
+            Name = "delete-me",
+            RepositoryUrl = "https://github.com/example/delete-me",
+            Status = JobStatus.Succeeded,
+            GeneratedImageTag = "dockerizer:delete-me",
+            ImageId = "sha256:delete-me",
+            ContainerId = "container-delete-me",
+            ContainerName = "dockerizer-job-delete-me",
+            ContainerPort = 3000,
+            Artifacts =
+            [
+                new JobArtifact { Kind = "log", Name = "job.log", Content = "log" }
+            ],
+            Images =
+            [
+                new JobImage
+                {
+                    Status = JobStatus.Succeeded,
+                    ImageTag = "dockerizer:delete-me",
+                    ImageId = "sha256:delete-me",
+                    Artifacts =
+                    [
+                        new ImageArtifact { Kind = "generated-file", Name = "Dockerfile", Content = "FROM nginx" }
+                    ]
+                }
+            ]
+        };
+        job.CurrentImage = job.Images.Single();
+        context.Jobs.Add(job);
+        await context.SaveChangesAsync();
+
+        var workspacePath = Path.Combine(_tempRoot, "workspace", job.Id.ToString("N"));
+        Directory.CreateDirectory(workspacePath);
+        await File.WriteAllTextAsync(Path.Combine(workspacePath, "Dockerfile"), "FROM nginx");
+
+        var deleted = await jobsService.DeleteAsync(job.Id, CancellationToken.None);
+
+        Assert.True(deleted);
+        Assert.Contains(job.Id, fakeRuntime.StopRequests);
+        Assert.Contains(fakeImageStore.RemoveRequests, request => request.ImageId == "sha256:delete-me" && request.ImageTag == "dockerizer:delete-me");
+        Assert.False(await context.Jobs.AnyAsync(x => x.Id == job.Id));
+        Assert.False(await context.JobArtifacts.AnyAsync(x => x.JobId == job.Id));
+        Assert.False(await context.JobImages.AnyAsync(x => x.JobId == job.Id));
+        Assert.False(await context.ImageArtifacts.AnyAsync());
+        Assert.False(Directory.Exists(workspacePath));
     }
 
     [Fact]
@@ -408,6 +475,7 @@ public sealed class JobPipelineEndToEndTests : IDisposable
             new InMemoryJobQueue(),
             CreateArtifactService(context),
             fakeRuntime,
+            new FakeDockerImageStore(),
             Options.Create(new ApplicationRoutingOptions()),
             CreateRepositoryInspectionService(),
             new RepositoryProjectPathResolver());
@@ -634,9 +702,12 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
     private sealed class FakeDockerImageStore : IDockerImageStore
     {
+        public List<(string? ImageId, string? ImageTag)> RemoveRequests { get; } = [];
+
         public Task RemoveAsync(string? imageId, string? imageTag, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            RemoveRequests.Add((imageId, imageTag));
             return Task.CompletedTask;
         }
     }
