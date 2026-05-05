@@ -33,6 +33,15 @@ Set real values in `terraform.tfvars` before applying.
 
 Do not commit `terraform.tfvars`; it contains secrets.
 
+## Persistent database data
+
+The Postgres Docker volume is protected with Terraform `prevent_destroy`.
+`terraform destroy` will not remove the database data by accident.
+
+If you intentionally want to delete the database volume, first remove the
+`prevent_destroy` block from `docker_volume.postgres` in `main.tf`, then run
+Terraform again.
+
 ## Frontend access with tunnel mode
 
 When `enable_tunnel = true`, generated applications can still use the public

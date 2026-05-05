@@ -5,6 +5,7 @@ namespace Dockerizer.Infrastructure.Persistence;
 
 public sealed class DockerizerDbContext(DbContextOptions<DockerizerDbContext> options) : DbContext(options)
 {
+    public DbSet<Project> Projects => Set<Project>();
     public DbSet<Job> Jobs => Set<Job>();
     public DbSet<JobImage> JobImages => Set<JobImage>();
     public DbSet<ImageArtifact> ImageArtifacts => Set<ImageArtifact>();

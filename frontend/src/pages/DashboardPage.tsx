@@ -2,13 +2,16 @@ import { Link } from "react-router-dom";
 import { Panel } from "../components/Panel";
 import { PageHeader } from "../components/PageHeader";
 import { JobList } from "../features/jobs/JobList";
-import { useJobs, useSystemResources } from "../features/jobs/hooks";
+import { ProjectList } from "../features/projects/ProjectList";
+import { useJobs, useProjects, useSystemResources } from "../features/jobs/hooks";
 import type { ContainerResourceUsage } from "../features/jobs/types";
 
 export function DashboardPage() {
   const jobsQuery = useJobs();
+  const projectsQuery = useProjects();
   const resourcesQuery = useSystemResources();
   const jobs = jobsQuery.data ?? [];
+  const projects = projectsQuery.data ?? [];
   const resources = resourcesQuery.data;
   const successCount = jobs.filter((job) => job.status === "Succeeded").length;
   const failedCount = jobs.filter((job) => job.status === "Failed").length;
@@ -23,7 +26,8 @@ export function DashboardPage() {
         description="Containerize your GitHub repositories with precision."
       />
 
-      <section className="grid gap-4 xl:grid-cols-5">
+      <section className="grid gap-4 xl:grid-cols-6">
+        <StatCard label="Projects" value={projects.length} icon="apps" />
         <StatCard label="Total Jobs" value={jobs.length} icon="query_stats" />
         <StatCard label="Succeeded" value={successCount} icon="check_circle" iconTone="text-emerald-600" />
         <StatCard label="Failed" value={failedCount} icon="error" iconTone="text-rose-700" />
@@ -33,28 +37,32 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 xl:col-span-4">
-          <Panel title="Pipeline Launch" description="Create a new containerization job from the dedicated setup view.">
+          <Panel title="Project Launch" description="Create a persistent application project before launching builds.">
             <div className="space-y-4">
               <p className="text-sm text-steel">
-                Choose a repository, inspect its branches, and name the deployment before the build pipeline starts.
+                Choose a repository, inspect its branches, and keep future builds grouped under one application.
               </p>
               <Link
-                to="/jobs/new"
+                to="/projects/new"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded border border-slate-900 bg-slate-900 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
               >
                 <span className="material-symbols-outlined text-[18px]">add</span>
-                New Job
+                New Project
               </Link>
             </div>
           </Panel>
         </div>
 
         <div className="col-span-12 xl:col-span-8">
-          <Panel title="Recent Jobs" description="Jobs refresh automatically every few seconds.">
-            <JobList jobs={jobs.slice(0, 8)} mode="dashboard" />
+          <Panel title="Active Projects" description="Projects refresh automatically every few seconds.">
+            <ProjectList projects={projects.slice(0, 8)} />
           </Panel>
         </div>
       </div>
+
+      <Panel title="Recent Jobs" description="Latest build and deployment runs.">
+        <JobList jobs={jobs.slice(0, 8)} mode="dashboard" />
+      </Panel>
 
       <div className="grid gap-4 xl:grid-cols-4">
         <Panel title="Resource Guard" description="Live Docker resource usage for managed containers.">

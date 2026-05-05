@@ -25,16 +25,40 @@ public sealed class JobsService(
 
     public async Task<JobDetailsDto> CreateAsync(CreateJobCommand command, CancellationToken cancellationToken)
     {
+        var project = command.ProjectId.HasValue
+            ? await dbContext.Projects.FirstOrDefaultAsync(project => project.Id == command.ProjectId.Value, cancellationToken)
+            : new Project
+            {
+                Name = command.Name.Trim(),
+                RepositoryUrl = command.RepositoryUrl.Trim(),
+                DefaultBranch = string.IsNullOrWhiteSpace(command.Branch) ? null : command.Branch.Trim(),
+                DefaultProjectPath = string.IsNullOrWhiteSpace(command.ProjectPath) ? null : repositoryProjectPathResolver.Normalize(command.ProjectPath),
+            };
+
+        if (project is null)
+        {
+            throw new InvalidOperationException("Project was not found.");
+        }
+
         var job = new Job
         {
+            Project = project,
+            ProjectId = project.Id,
             Name = command.Name.Trim(),
-            RepositoryUrl = command.RepositoryUrl.Trim(),
-            Branch = string.IsNullOrWhiteSpace(command.Branch) ? null : command.Branch.Trim(),
-            ProjectPath = string.IsNullOrWhiteSpace(command.ProjectPath) ? null : repositoryProjectPathResolver.Normalize(command.ProjectPath),
+            RepositoryUrl = command.ProjectId.HasValue ? project.RepositoryUrl : command.RepositoryUrl.Trim(),
+            Branch = string.IsNullOrWhiteSpace(command.Branch) ? project.DefaultBranch : command.Branch.Trim(),
+            ProjectPath = string.IsNullOrWhiteSpace(command.ProjectPath) ? project.DefaultProjectPath : repositoryProjectPathResolver.Normalize(command.ProjectPath),
+            PublicAccessEnabled = project.PublicAccessEnabled,
             Status = JobStatus.Queued,
         };
 
+        if (!command.ProjectId.HasValue)
+        {
+            dbContext.Projects.Add(project);
+        }
+
         dbContext.Jobs.Add(job);
+        project.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         await jobQueue.EnqueueAsync(job.Id, cancellationToken);
 
@@ -48,6 +72,7 @@ public sealed class JobsService(
     {
         var jobs = await dbContext.Jobs
             .AsNoTracking()
+            .Include(job => job.Project)
             .OrderByDescending(job => job.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
@@ -57,6 +82,8 @@ public sealed class JobsService(
             var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
             items.Add(new JobListItemDto(
                 job.Id,
+                job.ProjectId,
+                job.Project.Name,
                 job.Name,
                 job.RepositoryUrl,
                 job.Branch,
@@ -83,6 +110,7 @@ public sealed class JobsService(
     {
         var job = await dbContext.Jobs
             .AsNoTracking()
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -98,6 +126,7 @@ public sealed class JobsService(
     public async Task<JobDetailsDto?> StartContainerAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await dbContext.Jobs
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
@@ -112,6 +141,7 @@ public sealed class JobsService(
 
         var deployment = await dockerContainerRuntime.StartAsync(job, job.ContainerPort.Value, cancellationToken);
         ApplyDeployment(job, deployment);
+        ApplyProjectDeployment(job);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
@@ -121,6 +151,7 @@ public sealed class JobsService(
     public async Task<JobDetailsDto?> RestartContainerAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await dbContext.Jobs
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
@@ -135,6 +166,7 @@ public sealed class JobsService(
 
         var deployment = await dockerContainerRuntime.RestartAsync(job, job.ContainerPort.Value, cancellationToken);
         ApplyDeployment(job, deployment);
+        ApplyProjectDeployment(job);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
@@ -144,6 +176,7 @@ public sealed class JobsService(
     public async Task<JobDetailsDto?> StopContainerAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await dbContext.Jobs
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
@@ -161,6 +194,7 @@ public sealed class JobsService(
         EnsureTunnelRoutingIsConfigured();
 
         var job = await dbContext.Jobs
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
@@ -178,6 +212,7 @@ public sealed class JobsService(
 
         var deployment = await dockerContainerRuntime.RunAsync(job, job.ContainerPort!.Value, cancellationToken);
         ApplyDeployment(job, deployment);
+        ApplyProjectDeployment(job);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
@@ -187,6 +222,7 @@ public sealed class JobsService(
     public async Task<JobDetailsDto?> DisablePublicRouteAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await dbContext.Jobs
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
@@ -206,6 +242,7 @@ public sealed class JobsService(
             ApplyDeployment(job, deployment);
         }
 
+        ApplyProjectDeployment(job);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var containerStatus = await dockerContainerRuntime.GetStatusAsync(job, cancellationToken);
@@ -217,7 +254,9 @@ public sealed class JobsService(
 
     public async Task<JobDetailsDto?> RetryAsync(Guid id, CancellationToken cancellationToken)
     {
-        var job = await dbContext.Jobs.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        var job = await dbContext.Jobs
+            .Include(x => x.Project)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
         {
             return null;
@@ -258,7 +297,9 @@ public sealed class JobsService(
 
     public async Task<JobDetailsDto?> CancelAsync(Guid id, CancellationToken cancellationToken)
     {
-        var job = await dbContext.Jobs.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        var job = await dbContext.Jobs
+            .Include(x => x.Project)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
         {
             return null;
@@ -283,6 +324,7 @@ public sealed class JobsService(
         job.RouteStatus = null;
         job.DnsRecordId = null;
         job.DeployedAtUtc = null;
+        ClearProjectDeploymentIfCurrent(job);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -293,6 +335,7 @@ public sealed class JobsService(
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await dbContext.Jobs
+            .Include(x => x.Project)
             .Include(x => x.Images)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (job is null)
@@ -310,6 +353,7 @@ public sealed class JobsService(
         await artifactService.CleanupWorkspaceAsync(job.Id, cancellationToken);
 
         job.CurrentImageId = null;
+        ClearProjectDeploymentIfCurrent(job);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         dbContext.Jobs.Remove(job);
@@ -378,9 +422,48 @@ public sealed class JobsService(
         job.DeployedAtUtc = deployment.DeployedAtUtc;
     }
 
+    private static void ApplyProjectDeployment(Job job)
+    {
+        if (job.Project is null)
+        {
+            return;
+        }
+
+        if (job.Project.CurrentJobId.HasValue && job.Project.CurrentJobId != job.Id)
+        {
+            return;
+        }
+
+        job.Project.CurrentJobId = job.Id;
+        job.Project.CurrentImageId = job.CurrentImageId;
+        job.Project.PublicAccessEnabled = job.PublicAccessEnabled;
+        job.Project.PublicHostname = job.PublicHostname;
+        job.Project.DeploymentUrl = job.DeploymentUrl;
+        job.Project.RouteStatus = job.RouteStatus;
+        job.Project.UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    private static void ClearProjectDeploymentIfCurrent(Job job)
+    {
+        if (job.Project is null || job.Project.CurrentJobId != job.Id)
+        {
+            return;
+        }
+
+        job.Project.CurrentJobId = null;
+        job.Project.CurrentImageId = null;
+        job.Project.PublicAccessEnabled = false;
+        job.Project.PublicHostname = null;
+        job.Project.DeploymentUrl = null;
+        job.Project.RouteStatus = null;
+        job.Project.UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
     private static JobDetailsDto MapDetails(Job job, ContainerRuntimeStatus? containerStatus = null) =>
         new(
             job.Id,
+            job.ProjectId,
+            job.Project.Name,
             job.Name,
             job.RepositoryUrl,
             job.Branch,

@@ -1,20 +1,19 @@
 using Dockerizer.Application.Images;
+using Dockerizer.Application.Jobs;
 
-namespace Dockerizer.Application.Jobs;
+namespace Dockerizer.Application.Projects;
 
-public sealed record JobDetailsDto(
+public sealed record ProjectDetailsDto(
     Guid Id,
-    Guid ProjectId,
-    string ProjectName,
     string Name,
     string RepositoryUrl,
-    string? Branch,
-    string? ProjectPath,
-    string Status,
+    string? DefaultBranch,
+    string? DefaultProjectPath,
+    Guid? CurrentJobId,
+    Guid? CurrentImageId,
+    string? CurrentStatus,
     string? DetectedStack,
     string? GeneratedImageTag,
-    string? ImageId,
-    string? ContainerId,
     string? ContainerName,
     string? ContainerStatus,
     int? ContainerPort,
@@ -23,11 +22,10 @@ public sealed record JobDetailsDto(
     string? PublicHostname,
     string? RouteStatus,
     string? DeploymentUrl,
-    string? ErrorMessage,
-    Guid? CurrentImageId,
+    DateTimeOffset? DeployedAtUtc,
     JobImageSummaryDto? CurrentImage,
+    IReadOnlyCollection<JobListItemDto> Jobs,
     IReadOnlyCollection<JobImageSummaryDto> Images,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? StartedAtUtc,
-    DateTimeOffset? DeployedAtUtc,
-    DateTimeOffset? CompletedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    DateTimeOffset? ArchivedAtUtc);

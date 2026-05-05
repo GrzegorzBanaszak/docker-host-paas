@@ -40,10 +40,16 @@ public sealed class JobPipelineEndToEndTests : IDisposable
         await worker.ProcessAsync(created.Id, CancellationToken.None);
 
         var job = await jobsService.GetByIdAsync(created.Id, CancellationToken.None);
+        var project = await context.Projects.AsNoTracking().FirstOrDefaultAsync(x => x.Id == created.ProjectId);
         var files = await jobsService.GetFilesAsync(created.Id, CancellationToken.None);
         var logs = await jobsService.GetLogsAsync(created.Id, CancellationToken.None);
 
         Assert.NotNull(job);
+        Assert.NotNull(project);
+        Assert.Equal(project!.Id, job!.ProjectId);
+        Assert.Equal(job.Id, project.CurrentJobId);
+        Assert.Equal(job.CurrentImageId, project.CurrentImageId);
+        Assert.Equal(job.DeploymentUrl, project.DeploymentUrl);
         Assert.Equal("artisan-bakery-landing-page", job!.Name);
         Assert.Equal(nameof(JobStatus.Succeeded), job!.Status);
         Assert.Equal("node-backend", job.DetectedStack);
@@ -230,6 +236,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
         var job = new Job
         {
+            Project = new Project
+            {
+                Name = "artisan-bakery-landing-page",
+                RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
+            },
             Name = "artisan-bakery-landing-page",
             RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
             Status = JobStatus.Succeeded,
@@ -282,6 +293,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
         var job = new Job
         {
+            Project = new Project
+            {
+                Name = "delete-me",
+                RepositoryUrl = "https://github.com/example/delete-me",
+            },
             Name = "delete-me",
             RepositoryUrl = "https://github.com/example/delete-me",
             Status = JobStatus.Succeeded,
@@ -338,6 +354,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
         var job = new Job
         {
+            Project = new Project
+            {
+                Name = "artisan-bakery-landing-page",
+                RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
+            },
             Name = "artisan-bakery-landing-page",
             RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
             Status = JobStatus.Succeeded,
@@ -375,6 +396,11 @@ public sealed class JobPipelineEndToEndTests : IDisposable
 
         var job = new Job
         {
+            Project = new Project
+            {
+                Name = "artisan-bakery-landing-page",
+                RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
+            },
             Name = "artisan-bakery-landing-page",
             RepositoryUrl = "https://github.com/GrzegorzBanaszak/artisan-bakery-landing-page",
             Status = JobStatus.Succeeded,

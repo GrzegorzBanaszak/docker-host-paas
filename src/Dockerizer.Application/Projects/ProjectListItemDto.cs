@@ -1,14 +1,14 @@
-namespace Dockerizer.Application.Jobs;
+namespace Dockerizer.Application.Projects;
 
-public sealed record JobListItemDto(
+public sealed record ProjectListItemDto(
     Guid Id,
-    Guid ProjectId,
-    string ProjectName,
     string Name,
     string RepositoryUrl,
-    string? Branch,
-    string? ProjectPath,
-    string Status,
+    string? DefaultBranch,
+    string? DefaultProjectPath,
+    Guid? CurrentJobId,
+    Guid? CurrentImageId,
+    string? CurrentStatus,
     string? DetectedStack,
     string? GeneratedImageTag,
     string? ContainerName,
@@ -20,4 +20,7 @@ public sealed record JobListItemDto(
     string? RouteStatus,
     string? DeploymentUrl,
     DateTimeOffset? DeployedAtUtc,
-    DateTimeOffset CreatedAtUtc);
+    int JobsCount,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? UpdatedAtUtc,
+    DateTimeOffset? ArchivedAtUtc);

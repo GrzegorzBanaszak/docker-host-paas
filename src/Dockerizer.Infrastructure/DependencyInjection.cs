@@ -3,6 +3,7 @@ using Dockerizer.Infrastructure.Containers;
 using Dockerizer.Infrastructure.Configuration;
 using Dockerizer.Infrastructure.Dns;
 using Dockerizer.Infrastructure.Jobs;
+using Dockerizer.Infrastructure.Projects;
 using Dockerizer.Infrastructure.Artifacts;
 using Dockerizer.Infrastructure.Images;
 using Dockerizer.Infrastructure.Persistence;
@@ -100,6 +101,7 @@ public static class DependencyInjection
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IJobQueue, RedisJobQueue>();
         services.AddScoped<IDnsService, DnsService>();
+        services.AddScoped<IProjectsService, ProjectsService>();
         services.AddScoped<IJobsService, JobsService>();
         services.AddScoped<IImagesService, ImagesService>();
 

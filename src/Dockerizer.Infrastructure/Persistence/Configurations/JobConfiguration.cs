@@ -12,6 +12,9 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
 
         builder.HasKey(job => job.Id);
 
+        builder.Property(job => job.ProjectId)
+            .IsRequired();
+
         builder.Property(job => job.Name)
             .HasMaxLength(200)
             .IsRequired();
@@ -84,6 +87,7 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
 
         builder.HasIndex(job => job.CreatedAtUtc);
         builder.HasIndex(job => job.CurrentImageId);
+        builder.HasIndex(job => job.ProjectId);
         builder.HasIndex(job => job.PublicAccessEnabled);
         builder.HasIndex(job => job.PublicHostname);
         builder.HasIndex(job => job.Status);

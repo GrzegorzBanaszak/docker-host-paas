@@ -59,6 +59,10 @@ resource "docker_network" "public" {
 
 resource "docker_volume" "postgres" {
   name = local.postgres_volume
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "docker_volume" "redis" {

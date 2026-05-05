@@ -1,11 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import type { CreateJobInput } from "./types";
+import type { CreateJobInput, CreateProjectInput, CreateProjectJobInput } from "./types";
 
 export function useJobs() {
   return useQuery({
     queryKey: ["jobs"],
     queryFn: api.getJobs,
+    refetchInterval: 5000
+  });
+}
+
+export function useProjects() {
+  return useQuery({
+    queryKey: ["projects"],
+    queryFn: api.getProjects,
+    refetchInterval: 5000
+  });
+}
+
+export function useProject(projectId: string) {
+  return useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.getProject(projectId),
+    enabled: Boolean(projectId),
     refetchInterval: 5000
   });
 }
@@ -103,6 +120,71 @@ export function useCreateJob() {
     mutationFn: (payload: CreateJobInput) => api.createJob(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    }
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateProjectInput) => api.createProject(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    }
+  });
+}
+
+export function useCreateProjectJob(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload?: CreateProjectJobInput) => api.createProjectJob(projectId, payload ?? {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    }
+  });
+}
+
+export function usePublishProject(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.publishProject(projectId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
+    }
+  });
+}
+
+export function useUnpublishProject(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.unpublishProject(projectId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
+    }
+  });
+}
+
+export function useArchiveProject(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.archiveProject(projectId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["dns"] });
     }
   });
 }
@@ -123,6 +205,7 @@ export function useRetryJob(jobId: string) {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       void queryClient.invalidateQueries({ queryKey: ["dns"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
     }
   });
 }
@@ -136,6 +219,7 @@ export function useRebuildJob(jobId: string) {
       void queryClient.invalidateQueries({ queryKey: ["jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       void queryClient.invalidateQueries({ queryKey: ["images"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
     }
   });
 }

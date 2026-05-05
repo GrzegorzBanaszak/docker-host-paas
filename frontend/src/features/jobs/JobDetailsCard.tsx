@@ -1,5 +1,4 @@
 import type { JobDetails } from "./types";
-import { JobStatusBadge } from "./JobStatusBadge";
 import { StackBadge } from "../../components/StackBadge";
 
 export function JobDetailsCard({ job }: { job: JobDetails }) {
@@ -10,10 +9,6 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
           Artifacts
         </h3>
         <div className="space-y-4">
-          <div>
-            <p className="text-xs text-steel">Job Name</p>
-            <p className="mt-1 text-sm font-semibold text-ink">{job.name}</p>
-          </div>
           <div>
             <p className="text-xs text-steel">Detected Stack</p>
             <div className="mt-2">
@@ -38,26 +33,6 @@ export function JobDetailsCard({ job }: { job: JobDetails }) {
               <p className="mt-1 font-mono text-[12px] text-ink">
                 {job.currentImage ? `#${job.currentImage.id.slice(0, 8)}` : "not assigned"}
               </p>
-            </div>
-            <div>
-              <p className="text-xs text-steel">Image History</p>
-              <p className="mt-1 text-sm text-ink">{job.images.length}</p>
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-steel">Status</p>
-            <div className="mt-2">
-              <JobStatusBadge status={job.status} />
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-steel">Repository</p>
-            <p className="mt-1 break-all text-sm text-ink">{job.repositoryUrl}</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-xs text-steel">Branch</p>
-              <p className="mt-1 font-mono text-[12px] text-ink">{job.branch || "main"}</p>
             </div>
             <div>
               <p className="text-xs text-steel">Project Path</p>

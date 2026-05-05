@@ -4,6 +4,8 @@ import type {
 } from "../features/dns/types";
 import type {
   CreateJobInput,
+  CreateProjectInput,
+  CreateProjectJobInput,
   ImageDetails,
   ImageListItem,
   JobDetails,
@@ -11,6 +13,8 @@ import type {
   JobFileContent,
   JobListItem,
   JobLog,
+  ProjectDetails,
+  ProjectListItem,
   RepositoryInspection,
   SystemResourceSnapshot
 } from "../features/jobs/types";
@@ -64,6 +68,25 @@ async function getErrorMessage(response: Response) {
 }
 
 export const api = {
+  createProject: (payload: CreateProjectInput) =>
+    request<ProjectDetails>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  getProjects: () => request<ProjectListItem[]>("/api/projects"),
+  getProject: (projectId: string) => request<ProjectDetails>(`/api/projects/${projectId}`),
+  createProjectJob: (projectId: string, payload: CreateProjectJobInput = {}) =>
+    request<ProjectDetails>(`/api/projects/${projectId}/jobs`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  publishProject: (projectId: string) =>
+    request<ProjectDetails>(`/api/projects/${projectId}/publish`, { method: "POST" }),
+  unpublishProject: (projectId: string) =>
+    request<ProjectDetails>(`/api/projects/${projectId}/publish`, { method: "DELETE" }),
+  archiveProject: async (projectId: string) => {
+    await request<null>(`/api/projects/${projectId}`, { method: "DELETE" });
+  },
   createJob: (payload: CreateJobInput) =>
     request<JobDetails>("/api/jobs", {
       method: "POST",

@@ -4,7 +4,7 @@ import { Icon } from "./Icon";
 
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
-  const hideSideNav = location.pathname.startsWith("/jobs/") || location.pathname.startsWith("/images/");
+  const hideSideNav = location.pathname.startsWith("/jobs/") || location.pathname.startsWith("/images/") || location.pathname.startsWith("/projects/");
 
   return (
     <div className="blueprint-radial relative min-h-screen text-ink">
@@ -45,14 +45,15 @@ export function AppShell({ children }: PropsWithChildren) {
             <p className="mt-1 font-mono text-[11px] text-slate-500">Engine v2.4.0</p>
           </div>
           <Link
-            to="/jobs/new"
+            to="/projects/new"
             className="mb-4 flex items-center justify-center gap-2 rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
           >
             <Icon name="add" className="text-[18px]" />
-            New Job
+            New Project
           </Link>
           <nav className="flex flex-1 flex-col gap-1 text-[13px] font-semibold">
             <ShellLink to="/" label="Dashboard" icon="dashboard" active={location.pathname === "/"} />
+            <ShellLink to="/projects" label="Projects" icon="apps" active={location.pathname.startsWith("/projects")} />
             <ShellLink to="/jobs" label="Jobs" icon="terminal" active={location.pathname.startsWith("/jobs")} />
             <ShellLink to="/dns" label="DNS" icon="dns" active={location.pathname.startsWith("/dns")} />
             <ShellLink to="/images" label="Images" icon="layers" active={location.pathname.startsWith("/images")} />

@@ -188,7 +188,7 @@ public sealed class JobsController(IJobsService jobsService) : ControllerBase
         }
 
         var createdJob = await jobsService.CreateAsync(
-            new CreateJobCommand(request.Name, request.RepositoryUrl, request.Branch, request.ProjectPath),
+            new CreateJobCommand(request.Name, request.RepositoryUrl, request.Branch, request.ProjectPath, request.ProjectId),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = createdJob.Id }, createdJob);

@@ -34,7 +34,9 @@ public sealed class JobExecutionService(
 
     public async Task ProcessAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        var job = await dbContext.Jobs.FirstOrDefaultAsync(x => x.Id == jobId, cancellationToken);
+        var job = await dbContext.Jobs
+            .Include(x => x.Project)
+            .FirstOrDefaultAsync(x => x.Id == jobId, cancellationToken);
         if (job is null)
         {
             logger.LogWarning("Job {JobId} was not found in the database.", jobId);
@@ -135,6 +137,7 @@ public sealed class JobExecutionService(
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
             image.Status = JobStatus.Succeeded;
             image.CompletedAtUtc = job.CompletedAtUtc;
+            ApplySuccessfulDeploymentToProject(job);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             logger.LogInformation(
@@ -264,6 +267,17 @@ public sealed class JobExecutionService(
         return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(standardOutput)
             ? standardOutput
             : null;
+    }
+
+    private static void ApplySuccessfulDeploymentToProject(Job job)
+    {
+        job.Project.CurrentJobId = job.Id;
+        job.Project.CurrentImageId = job.CurrentImageId;
+        job.Project.PublicAccessEnabled = job.PublicAccessEnabled;
+        job.Project.PublicHostname = job.PublicHostname;
+        job.Project.DeploymentUrl = job.DeploymentUrl;
+        job.Project.RouteStatus = job.RouteStatus;
+        job.Project.UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     private sealed class JobCanceledException : Exception;
